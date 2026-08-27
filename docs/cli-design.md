@@ -29,6 +29,7 @@ Commands:
 - Keep subdomain normalization, exclusion filtering, and asset scoring native.
 - Keep API candidate selection, OpenAPI parsing, and inventory generation native.
 - Keep cloud and secret-looking lead extraction native with conservative redaction.
+- Keep JavaScript URL extraction, route triage, and source-map candidate generation native.
 - Keep raw output separate from normalized output.
 - Treat recon leads as candidates, not vulnerability findings.
 - Detect common tool collisions, especially Python `httpx` versus ProjectDiscovery `httpx`.
@@ -46,6 +47,6 @@ Commands:
 
 1. Parse ProjectDiscovery `httpx` JSON output natively instead of text output.
 2. Add screenshots as a first-class CLI stage.
-3. Move JavaScript route extraction into native Go.
-4. Add profile presets for rate, crawl depth, and module selection.
+3. Add profile presets for rate, crawl depth, and module selection.
+4. Add HTML reports for presentation and GitHub artifacts.
 5. Add installable releases with `go install github.com/parsamajidipour/reconx/cmd/reconx@latest`.

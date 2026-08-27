@@ -26,8 +26,12 @@ Extract client-side routes, API paths, feature flags, source maps, build metadat
 Fast path from the repository root:
 
 ```bash
-scripts/js-recon-pass.sh -r runs/example.com/$(date -u +%F)
+bin/reconx run -t example.com --profile balanced
 ```
+
+`reconx` runs `katana` as the crawl engine, then handles JavaScript URL extraction,
+relative URL resolution, bundle downloads, route extraction, source-map candidates,
+redaction of secret-looking strings, and `notes/js-leads.tsv` generation natively.
 
 Manual path:
 

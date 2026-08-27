@@ -12,6 +12,7 @@ import (
 	"github.com/parsamajidipour/reconx/internal/cloud"
 	"github.com/parsamajidipour/reconx/internal/config"
 	"github.com/parsamajidipour/reconx/internal/deps"
+	"github.com/parsamajidipour/reconx/internal/jsrecon"
 	"github.com/parsamajidipour/reconx/internal/report"
 	"github.com/parsamajidipour/reconx/internal/subdomain"
 )
@@ -54,7 +55,7 @@ func Run(root string, cfg config.Config) error {
 	switch cfg.Profile {
 	case config.ProfilePassive:
 	default:
-		if err := deps.RunCommand(root, os.Stdout, "scripts/js-recon-pass.sh", "-r", runDir, "-p", fmt.Sprint(cfg.CrawlRate)); err != nil {
+		if _, err := jsrecon.Run(jsrecon.Options{Root: root, RunDir: runDir, CrawlRate: cfg.CrawlRate}); err != nil {
 			fmt.Fprintf(os.Stdout, "[reconx] JS recon skipped or failed: %v\n", err)
 		}
 		if _, err := apidiscovery.Run(apidiscovery.Options{Root: root, RunDir: runDir, ProbeRate: cfg.APIRate}); err != nil {

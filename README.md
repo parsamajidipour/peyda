@@ -55,6 +55,7 @@ runs/example.com/YYYY-MM-DD/
 ├── normalized/recon-events.jsonl
 ├── normalized/live-hosts.txt
 ├── normalized/asset-scores.tsv
+├── normalized/js-route-leads.txt
 ├── normalized/api-inventory.tsv
 ├── raw/
 └── screenshots/
@@ -85,7 +86,7 @@ internal/report/   JSONL and Markdown report generation
 internal/subdomain/ Native subdomain collection, probing, and scoring
 internal/apidiscovery/ Native API candidate discovery and OpenAPI parsing
 internal/cloud/    Native cloud and secret-looking lead extraction
-scripts/           External engine adapters
+internal/jsrecon/  Native JavaScript crawling, extraction, and route triage
 playbooks/         Manual review methodology
 docs/              CLI design notes
 config/            Keyword and path dictionaries

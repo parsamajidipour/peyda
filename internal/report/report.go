@@ -68,17 +68,20 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 		"API docs/schema probes":    countLines(filepath.Join(runDir, "normalized/api-docs-probed.txt")),
 		"OpenAPI method/path pairs": countLines(filepath.Join(runDir, "normalized/openapi-methods.tsv")),
 		"Cloud/secret candidates":   max(0, countLines(filepath.Join(runDir, "notes/cloud-candidates.tsv"))-1),
+		"JavaScript route leads":    countLines(filepath.Join(runDir, "normalized/js-route-leads.txt")),
+		"Source map candidates":     countLines(filepath.Join(runDir, "normalized/source-map-candidates.txt")),
 		"JSONL events":              countLines(filepath.Join(runDir, "normalized/recon-events.jsonl")),
 	}
 
 	fmt.Fprintf(&b, "## Counts\n\n| Artifact | Count |\n| --- | ---: |\n")
-	for _, key := range []string{"In-scope subdomains", "Resolved hosts", "Live HTTP/S services", "Interesting hosts", "Scored assets", "API docs/schema probes", "OpenAPI method/path pairs", "Cloud/secret candidates", "JSONL events"} {
+	for _, key := range []string{"In-scope subdomains", "Resolved hosts", "Live HTTP/S services", "Interesting hosts", "Scored assets", "JavaScript route leads", "Source map candidates", "API docs/schema probes", "OpenAPI method/path pairs", "Cloud/secret candidates", "JSONL events"} {
 		fmt.Fprintf(&b, "| %s | %d |\n", key, counts[key])
 	}
 	fmt.Fprintf(&b, "\n")
 
 	addTopSection(&b, "High-Signal Review Queue", filepath.Join(runDir, "notes/interesting-hosts.txt"), 20)
 	addTopSection(&b, "Top Asset Scores", filepath.Join(runDir, "normalized/asset-scores.tsv"), 25)
+	addTopSection(&b, "JavaScript Leads", filepath.Join(runDir, "notes/js-leads.tsv"), 25)
 	addTopSection(&b, "API Inventory", filepath.Join(runDir, "normalized/api-inventory.tsv"), 25)
 	addTopSection(&b, "Cloud Candidates", filepath.Join(runDir, "notes/cloud-candidates.tsv"), 20)
 	addTopSection(&b, "Wildcard DNS Check", filepath.Join(runDir, "notes/wildcard-dns-check.txt"), 10)
@@ -119,6 +122,12 @@ func collectEvents(runDir string) []Event {
 		value := strings.TrimSpace(row["method"] + " " + row["host"] + row["path"])
 		if value != "" {
 			events = append(events, Event{Type: "api_endpoint", Value: value, Source: "normalized/api-inventory.tsv", Timestamp: now, Fields: row})
+		}
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "notes/js-leads.tsv")) {
+		value := row["route"]
+		if value != "" {
+			events = append(events, Event{Type: "js_route", Value: value, Source: "notes/js-leads.tsv", Timestamp: now, Fields: row})
 		}
 	}
 	for _, row := range readTSV(filepath.Join(runDir, "notes/cloud-candidates.tsv")) {

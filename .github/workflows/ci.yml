@@ -25,4 +25,4 @@ jobs:
         run: go build -o bin/reconx ./cmd/reconx
 
       - name: Check shell syntax
-        run: bash -n scripts/*.sh
+        run: if compgen -G "scripts/*.sh" > /dev/null; then bash -n scripts/*.sh; fi

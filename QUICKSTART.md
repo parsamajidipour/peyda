@@ -78,6 +78,8 @@ runs/example.com/YYYY-MM-DD/
 ├── normalized/resolved-hosts.txt
 ├── normalized/live-hosts.txt
 ├── normalized/asset-scores.tsv
+├── normalized/js-route-leads.txt
+├── normalized/source-map-candidates.txt
 ├── normalized/api-inventory.tsv
 └── notes/cloud-candidates.tsv
 ```

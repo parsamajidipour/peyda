@@ -17,7 +17,7 @@ This command:
 - installs missing system tools when `apt-get` is available
 - installs or refreshes ProjectDiscovery tools with `go install @latest`
 - detects the common Python `httpx` / ProjectDiscovery `httpx` name collision
-- treats `rg` as optional because the recon scripts can fall back to `grep`
+- treats `rg` as optional because core parsing now runs natively in Go
 
 Force-update Go-based recon tools:
 
@@ -51,14 +51,14 @@ katana -version
 nuclei -version
 ```
 
-## Screenshot Tool
+## Optional Screenshot Tool
 
 ```bash
 go install github.com/sensepost/gowitness@latest
 gowitness version
 ```
 
-## Secret Scanning
+## Optional Secret Scanning
 
 ```bash
 go install github.com/gitleaks/gitleaks/v8@latest

@@ -1,3 +1,6 @@
+.SHELLFLAGS := -eu -o pipefail -c
+SHELL := /bin/bash
+
 .PHONY: build test lint check
 
 build:
@@ -5,7 +8,7 @@ build:
 
 test:
 	go test ./...
-	bash -n scripts/*.sh
+	if compgen -G "scripts/*.sh" > /dev/null; then bash -n scripts/*.sh; fi
 
 lint:
 	npx markdownlint-cli2 "**/*.md"

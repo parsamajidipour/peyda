@@ -82,7 +82,7 @@ Produced by `reconx run` in `balanced` and `deep` profiles, then edited manually
 
 ## `notes/js-leads.tsv`
 
-Produced by `scripts/js-recon-pass.sh`.
+Produced by `reconx run` in `balanced` and `deep` profiles.
 
 | Column | Meaning |
 | --- | --- |
@@ -91,6 +91,11 @@ Produced by `scripts/js-recon-pass.sh`.
 | auth_guess | Expected authentication context |
 | object_or_action | Inferred object or sensitive action |
 | next_step | Suggested next test |
+
+## `normalized/source-map-candidates.txt`
+
+Produced by `reconx run` in `balanced` and `deep` profiles.
+Treat source maps as review candidates and only inspect them where program policy allows it.
 
 ## `notes/cloud-candidates.tsv`
 
