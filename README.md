@@ -80,12 +80,13 @@ When a recon run starts, the CLI prints a small banner:
 
         scope-first recon automation
         authorized targets only
+        peyda v1.0.0
 
 [INF] Scope-first recon workflow initialized
 [INF] Active probing is bounded by built-in safety limits and config
 ```
 
-No version is printed in the banner for now.
+The current public release version is `1.0.0`.
 
 ## Install
 
@@ -116,6 +117,7 @@ Verify the install:
 ```bash
 which peyda
 peyda help
+peyda version
 ```
 
 You can also install directly from GitHub after the repository is public and pushed:

@@ -14,7 +14,7 @@ import (
 	"github.com/parsamajidipour/peyda/internal/reconrun"
 )
 
-const version = "0.5.0"
+const version = "1.0.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -245,6 +245,7 @@ func printBanner() {
 
         scope-first recon automation
         authorized targets only
+        peyda v` + version + `
 
 [INF] Scope-first recon workflow initialized
 [INF] Active probing is bounded by built-in safety limits and config
