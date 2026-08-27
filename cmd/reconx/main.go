@@ -136,7 +136,25 @@ func runCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	printBanner()
 	return reconrun.Run(root, cfg)
+}
+
+func printBanner() {
+	fmt.Print(`
+ ____  _____ ____ ___  _   ___  __
+|  _ \| ____/ ___/ _ \| \ | \ \/ /
+| |_) |  _|| |  | | | |  \| |\  /
+|  _ <| |__| |__| |_| | |\  |/  \
+|_| \_\_____\____\___/|_| \_/_/\_\
+
+        scope-first recon automation
+        authorized targets only
+
+[INF] Scope-first recon workflow initialized
+[INF] Active probing is bounded by profile and config limits
+
+`)
 }
 
 func depsCommand(args []string) error {
