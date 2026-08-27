@@ -261,6 +261,9 @@ func NormalizeDomain(value string) string {
 }
 
 func fetchCrtSH(target string) ([]string, error) {
+	if isReservedTestDomain(target) {
+		return nil, fmt.Errorf("reserved test domain")
+	}
 	url := "https://crt.sh/?q=%25." + target + "&output=json"
 	client := http.Client{Timeout: 20 * time.Second}
 	resp, err := client.Get(url)
@@ -292,6 +295,14 @@ func fetchCrtSH(target string) ([]string, error) {
 		}
 	}
 	return sortedKeys(seen), nil
+}
+
+func isReservedTestDomain(target string) bool {
+	target = strings.ToLower(strings.TrimSuffix(target, "."))
+	return strings.HasSuffix(target, ".test") ||
+		strings.HasSuffix(target, ".localhost") ||
+		strings.HasSuffix(target, ".invalid") ||
+		target == "localhost"
 }
 
 func ScoreLiveHosts(path string, keywords []string) ([]AssetScore, error) {

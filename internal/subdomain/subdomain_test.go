@@ -70,3 +70,12 @@ func TestScoreLiveHosts(t *testing.T) {
 		t.Fatalf("top score = %+v", scores[0])
 	}
 }
+
+func TestReservedTestDomain(t *testing.T) {
+	if !isReservedTestDomain("example.test") {
+		t.Fatal("example.test should be treated as reserved")
+	}
+	if isReservedTestDomain("example.com") {
+		t.Fatal("example.com should not be treated as reserved")
+	}
+}

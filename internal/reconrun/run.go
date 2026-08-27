@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/parsamajidipour/reconx/internal/apidiscovery"
 	"github.com/parsamajidipour/reconx/internal/config"
 	"github.com/parsamajidipour/reconx/internal/deps"
 	"github.com/parsamajidipour/reconx/internal/report"
@@ -55,7 +56,7 @@ func Run(root string, cfg config.Config) error {
 		if err := deps.RunCommand(root, os.Stdout, "scripts/js-recon-pass.sh", "-r", runDir, "-p", fmt.Sprint(cfg.CrawlRate)); err != nil {
 			fmt.Fprintf(os.Stdout, "[reconx] JS recon skipped or failed: %v\n", err)
 		}
-		if err := deps.RunCommand(root, os.Stdout, "scripts/api-discovery-pass.sh", "-r", runDir, "-p", fmt.Sprint(cfg.APIRate)); err != nil {
+		if _, err := apidiscovery.Run(apidiscovery.Options{Root: root, RunDir: runDir, ProbeRate: cfg.APIRate}); err != nil {
 			return err
 		}
 		if err := deps.RunCommand(root, os.Stdout, "scripts/cloud-candidate-pass.sh", "-r", runDir); err != nil {

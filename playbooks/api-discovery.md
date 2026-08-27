@@ -21,8 +21,12 @@ Output: normalized/api-inventory.tsv
 Fast path from the repository root:
 
 ```bash
-scripts/api-discovery-pass.sh -r runs/example.com/$(date -u +%F)
+bin/reconx run -t example.com --profile balanced
 ```
+
+`reconx` builds API host candidates, probes common documentation/schema paths,
+downloads reachable JSON schemas, extracts OpenAPI method/path pairs, and creates
+`normalized/api-inventory.tsv`.
 
 Manual path:
 
@@ -227,7 +231,7 @@ Next checklist: IDOR, REST API authorization, export security
 | `notes/api-host-candidates.txt` | API-looking hosts from live probing |
 | `raw/api-doc-paths.txt` | Candidate docs/schema URLs |
 | `normalized/api-docs-probed.txt` | Probed docs/schema results |
-| `raw/openapi.json` | Raw OpenAPI schema |
+| `raw/api/*.json` | Raw downloaded OpenAPI schema candidates |
 | `normalized/openapi-methods.tsv` | Method/path pairs from schema |
 | `normalized/crawled-api-routes.txt` | API routes found by crawler |
 | `normalized/js-api-routes.txt` | API routes extracted from JavaScript |

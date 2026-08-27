@@ -27,6 +27,7 @@ Commands:
 - Produce JSONL events for automation and Markdown reports for humans.
 - Score live assets so the manual review queue is explainable.
 - Keep subdomain normalization, exclusion filtering, and asset scoring native.
+- Keep API candidate selection, OpenAPI parsing, and inventory generation native.
 - Keep raw output separate from normalized output.
 - Treat recon leads as candidates, not vulnerability findings.
 - Detect common tool collisions, especially Python `httpx` versus ProjectDiscovery `httpx`.
@@ -43,7 +44,7 @@ Commands:
 ## Roadmap
 
 1. Parse ProjectDiscovery `httpx` JSON output natively instead of text output.
-2. Move API discovery into native Go.
-3. Add screenshots as a first-class CLI stage.
+2. Add screenshots as a first-class CLI stage.
+3. Move cloud candidate extraction into native Go.
 4. Add profile presets for rate, crawl depth, and module selection.
 5. Add installable releases with `go install github.com/parsamajidipour/reconx/cmd/reconx@latest`.

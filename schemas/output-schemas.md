@@ -56,7 +56,7 @@ Produced by `reconx run` in `balanced` and `deep` profiles.
 
 ## `normalized/openapi-methods.tsv`
 
-Produced by `scripts/api-discovery-pass.sh`.
+Produced by `reconx run` in `balanced` and `deep` profiles.
 
 | Column | Meaning |
 | --- | --- |
@@ -66,7 +66,7 @@ Produced by `scripts/api-discovery-pass.sh`.
 
 ## `normalized/api-inventory.tsv`
 
-Produced by `scripts/api-discovery-pass.sh`, then edited manually.
+Produced by `reconx run` in `balanced` and `deep` profiles, then edited manually.
 
 | Column | Meaning |
 | --- | --- |
