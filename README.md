@@ -37,7 +37,7 @@ Depth profiles:
 
 | Profile | Behavior |
 | --- | --- |
-| `passive` | Passive subdomain collection and normalization only |
+| `passive` | Passive subdomain collection and normalization only; no active dependency setup |
 | `balanced` | Subdomains, DNS, HTTP probing, JS, API, cloud leads |
 | `deep` | Balanced workflow with higher crawl and probe limits |
 
@@ -54,6 +54,7 @@ runs/example.com/YYYY-MM-DD/
 ├── notes/recon-summary.md
 ├── normalized/recon-events.jsonl
 ├── normalized/live-hosts.txt
+├── normalized/asset-scores.tsv
 ├── normalized/api-inventory.tsv
 ├── raw/
 └── screenshots/
@@ -81,6 +82,7 @@ internal/config/   JSON config and profile defaults
 internal/deps/     Dependency orchestration
 internal/reconrun/ Native run setup and profile orchestration
 internal/report/   JSONL and Markdown report generation
+internal/subdomain/ Native subdomain collection, probing, and scoring
 scripts/           External engine adapters
 playbooks/         Manual review methodology
 docs/              CLI design notes

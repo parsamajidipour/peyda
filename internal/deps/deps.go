@@ -124,7 +124,7 @@ func (m Manager) Run(mode Mode) error {
 }
 
 func (m Manager) checkTool(name string, optional bool) ToolStatus {
-	path, err := lookPath(name)
+	path, err := LookPath(name)
 	if err != nil {
 		return ToolStatus{Name: name, Optional: optional, Message: "missing"}
 	}
@@ -171,7 +171,7 @@ func (m Manager) installSystemPackages() error {
 
 	var packages []string
 	for _, name := range append(requiredSystemTools, optionalSystemTools...) {
-		if _, err := lookPath(name); err == nil {
+		if _, err := LookPath(name); err == nil {
 			continue
 		}
 		if name == "rg" {
@@ -245,7 +245,7 @@ func isProjectDiscoveryHTTPX(path string) bool {
 		strings.Contains(text, "httpx version")
 }
 
-func lookPath(name string) (string, error) {
+func LookPath(name string) (string, error) {
 	if goBin := DetectGoBin(); goBin != "" {
 		path := filepath.Join(goBin, name)
 		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
@@ -271,6 +271,9 @@ func WithGoBinFirst(env []string) []string {
 }
 
 func DetectGoBin() string {
+	if gopath := strings.TrimSpace(os.Getenv("GOPATH")); gopath != "" {
+		return filepath.Join(gopath, "bin")
+	}
 	if out, err := exec.Command("go", "env", "GOPATH").Output(); err == nil {
 		gopath := strings.TrimSpace(string(out))
 		if gopath != "" {

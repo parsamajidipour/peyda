@@ -25,6 +25,8 @@ Commands:
 
 - Produce normalized files that can be reviewed, diffed, and handed off.
 - Produce JSONL events for automation and Markdown reports for humans.
+- Score live assets so the manual review queue is explainable.
+- Keep subdomain normalization, exclusion filtering, and asset scoring native.
 - Keep raw output separate from normalized output.
 - Treat recon leads as candidates, not vulnerability findings.
 - Detect common tool collisions, especially Python `httpx` versus ProjectDiscovery `httpx`.
@@ -34,14 +36,14 @@ Commands:
 
 | Profile | Purpose |
 | --- | --- |
-| `passive` | Passive subdomain collection only; no DNS or HTTP probing |
+| `passive` | Passive subdomain collection only; no DNS or HTTP probing or active dependency setup |
 | `balanced` | Standard recon pipeline with moderate limits |
 | `deep` | Higher probe and crawl rates for larger authorized scopes |
 
 ## Roadmap
 
-1. Move subdomain normalization and exclusion filtering fully into native Go.
-2. Keep ProjectDiscovery tools as engines, but parse their output natively.
+1. Parse ProjectDiscovery `httpx` JSON output natively instead of text output.
+2. Move API discovery into native Go.
 3. Add screenshots as a first-class CLI stage.
 4. Add profile presets for rate, crawl depth, and module selection.
 5. Add installable releases with `go install github.com/parsamajidipour/reconx/cmd/reconx@latest`.

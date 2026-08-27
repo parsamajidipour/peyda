@@ -21,9 +21,12 @@ Run directory: runs/example.com/YYYY-MM-DD/
 Fast path from the repository root:
 
 ```bash
-bin/reconx init -t example.com
-scripts/subdomain-pass.sh -t example.com -r runs/example.com/$(date -u +%F)
+bin/reconx run -t example.com --profile balanced -p 50
 ```
+
+`reconx` handles normalization, exclusion filtering, DNS/HTTP orchestration, and
+asset scoring natively. ProjectDiscovery tools are used as engines, while the
+review queue is produced by `normalized/asset-scores.tsv`.
 
 Manual setup:
 

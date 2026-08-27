@@ -12,7 +12,7 @@ import (
 	"github.com/parsamajidipour/reconx/internal/reconrun"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 func main() {
 	if len(os.Args) < 2 {

@@ -48,7 +48,7 @@ fi
 
 live_hosts="$run_dir/normalized/live-hosts.txt"
 if [[ ! -f "$live_hosts" ]]; then
-  echo "Error: missing $live_hosts. Run scripts/subdomain-pass.sh first." >&2
+  echo "Error: missing $live_hosts. Run reconx with the balanced or deep profile first." >&2
   exit 4
 fi
 

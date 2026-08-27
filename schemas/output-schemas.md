@@ -22,7 +22,7 @@ Each line is one JSON object:
 
 ## `normalized/live-hosts.txt`
 
-Produced by `scripts/subdomain-pass.sh`.
+Produced by `reconx run` in `balanced` and `deep` profiles.
 
 ```text
 https://app.example.com [200] [Sign in] [React,nginx] [14320]
@@ -39,6 +39,20 @@ https://app.example.com [200] [Sign in] [React,nginx] [14320]
 ## `notes/interesting-hosts.txt`
 
 Produced by keyword filtering over live hosts. Treat as a review queue, not proof.
+
+## `normalized/asset-scores.tsv`
+
+Produced by `reconx run` in `balanced` and `deep` profiles.
+
+| Column | Meaning |
+| --- | --- |
+| url | Live URL returned by ProjectDiscovery `httpx` |
+| host | Hostname extracted from the URL |
+| status | HTTP status code |
+| title | HTML title |
+| technology | Detected technology hints |
+| score | Review priority score |
+| reasons | Weighted signals that contributed to the score |
 
 ## `normalized/openapi-methods.tsv`
 

@@ -30,8 +30,7 @@ bin/reconx run -t example-saas.com -e config/excluded.example.txt --profile bala
 Or run the first two stages manually:
 
 ```bash
-bin/reconx init -t example-saas.com -e config/excluded.example.txt
-scripts/subdomain-pass.sh -t example-saas.com -r runs/example-saas.com/$(date -u +%F) -p 30
+bin/reconx run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
 ```
 
 ## Sample Live Hosts

@@ -77,6 +77,7 @@ runs/example.com/YYYY-MM-DD/
 ├── normalized/subdomains.txt
 ├── normalized/resolved-hosts.txt
 ├── normalized/live-hosts.txt
+├── normalized/asset-scores.tsv
 ├── normalized/api-inventory.tsv
 └── notes/cloud-candidates.tsv
 ```
@@ -93,6 +94,12 @@ Use JSONL for automation:
 ```bash
 jq -r 'select(.type=="live_service") | [.value, .fields.status, .fields.title] | @tsv' \
   "$latest_run/normalized/recon-events.jsonl"
+```
+
+Review priority-scored assets:
+
+```bash
+column -t -s $'\t' "$latest_run/normalized/asset-scores.tsv" | less -S
 ```
 
 ## Profiles

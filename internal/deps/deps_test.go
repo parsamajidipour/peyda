@@ -36,7 +36,7 @@ func TestLookPathPrefersGoBin(t *testing.T) {
 	if err := os.WriteFile(tool, []byte("#!/usr/bin/env sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	path, err := lookPath("reconx-test-tool")
+	path, err := LookPath("reconx-test-tool")
 	if err != nil {
 		t.Fatal(err)
 	}

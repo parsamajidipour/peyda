@@ -64,6 +64,7 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 		"Resolved hosts":            countLines(filepath.Join(runDir, "normalized/resolved-hosts.txt")),
 		"Live HTTP/S services":      countLines(filepath.Join(runDir, "normalized/live-hosts.txt")),
 		"Interesting hosts":         countLines(filepath.Join(runDir, "notes/interesting-hosts.txt")),
+		"Scored assets":             max(0, countLines(filepath.Join(runDir, "normalized/asset-scores.tsv"))-1),
 		"API docs/schema probes":    countLines(filepath.Join(runDir, "normalized/api-docs-probed.txt")),
 		"OpenAPI method/path pairs": countLines(filepath.Join(runDir, "normalized/openapi-methods.tsv")),
 		"Cloud/secret candidates":   max(0, countLines(filepath.Join(runDir, "notes/cloud-candidates.tsv"))-1),
@@ -71,12 +72,13 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 	}
 
 	fmt.Fprintf(&b, "## Counts\n\n| Artifact | Count |\n| --- | ---: |\n")
-	for _, key := range []string{"In-scope subdomains", "Resolved hosts", "Live HTTP/S services", "Interesting hosts", "API docs/schema probes", "OpenAPI method/path pairs", "Cloud/secret candidates", "JSONL events"} {
+	for _, key := range []string{"In-scope subdomains", "Resolved hosts", "Live HTTP/S services", "Interesting hosts", "Scored assets", "API docs/schema probes", "OpenAPI method/path pairs", "Cloud/secret candidates", "JSONL events"} {
 		fmt.Fprintf(&b, "| %s | %d |\n", key, counts[key])
 	}
 	fmt.Fprintf(&b, "\n")
 
 	addTopSection(&b, "High-Signal Review Queue", filepath.Join(runDir, "notes/interesting-hosts.txt"), 20)
+	addTopSection(&b, "Top Asset Scores", filepath.Join(runDir, "normalized/asset-scores.tsv"), 25)
 	addTopSection(&b, "API Inventory", filepath.Join(runDir, "normalized/api-inventory.tsv"), 25)
 	addTopSection(&b, "Cloud Candidates", filepath.Join(runDir, "notes/cloud-candidates.tsv"), 20)
 	addTopSection(&b, "Wildcard DNS Check", filepath.Join(runDir, "notes/wildcard-dns-check.txt"), 10)
@@ -106,6 +108,12 @@ func collectEvents(runDir string) []Event {
 	for _, line := range readLines(filepath.Join(runDir, "normalized/live-hosts.txt")) {
 		fields := parseHTTPXLine(line)
 		events = append(events, Event{Type: "live_service", Value: fields["url"], Source: "normalized/live-hosts.txt", Timestamp: now, Fields: fields})
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/asset-scores.tsv")) {
+		value := row["url"]
+		if value != "" {
+			events = append(events, Event{Type: "asset_score", Value: value, Source: "normalized/asset-scores.tsv", Timestamp: now, Fields: row})
+		}
 	}
 	for _, row := range readTSV(filepath.Join(runDir, "normalized/api-inventory.tsv")) {
 		value := strings.TrimSpace(row["method"] + " " + row["host"] + row["path"])

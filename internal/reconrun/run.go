@@ -1,25 +1,21 @@
 package reconrun
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/parsamajidipour/reconx/internal/config"
 	"github.com/parsamajidipour/reconx/internal/deps"
 	"github.com/parsamajidipour/reconx/internal/report"
+	"github.com/parsamajidipour/reconx/internal/subdomain"
 )
 
 func Run(root string, cfg config.Config) error {
-	if !cfg.SkipDeps {
+	if !cfg.SkipDeps && cfg.Profile != config.ProfilePassive {
 		if err := deps.Run(root, deps.Ensure, os.Stdout); err != nil {
 			return err
 		}
@@ -32,13 +28,30 @@ func Run(root string, cfg config.Config) error {
 
 	switch cfg.Profile {
 	case config.ProfilePassive:
-		if err := passiveSubdomains(root, runDir, cfg.Target); err != nil {
-			return err
-		}
+		_, err = subdomain.Run(subdomain.Options{
+			Root:    root,
+			RunDir:  runDir,
+			Target:  cfg.Target,
+			Resolve: false,
+			Probe:   false,
+		})
 	default:
-		if err := deps.RunCommand(root, os.Stdout, "scripts/subdomain-pass.sh", "-t", cfg.Target, "-r", runDir, "-p", fmt.Sprint(cfg.ProbeRate)); err != nil {
-			return err
-		}
+		_, err = subdomain.Run(subdomain.Options{
+			Root:      root,
+			RunDir:    runDir,
+			Target:    cfg.Target,
+			ProbeRate: cfg.ProbeRate,
+			Resolve:   true,
+			Probe:     true,
+		})
+	}
+	if err != nil {
+		return err
+	}
+
+	switch cfg.Profile {
+	case config.ProfilePassive:
+	default:
 		if err := deps.RunCommand(root, os.Stdout, "scripts/js-recon-pass.sh", "-r", runDir, "-p", fmt.Sprint(cfg.CrawlRate)); err != nil {
 			fmt.Fprintf(os.Stdout, "[reconx] JS recon skipped or failed: %v\n", err)
 		}
@@ -137,7 +150,7 @@ func FindRepoRoot() (string, error) {
 }
 
 func hasReconFiles(dir string) bool {
-	required := []string{"go.mod", "scripts/subdomain-pass.sh"}
+	required := []string{"go.mod", "cmd/reconx/main.go"}
 	for _, rel := range required {
 		info, err := os.Stat(filepath.Join(dir, rel))
 		if err != nil || info.IsDir() {
@@ -145,104 +158,4 @@ func hasReconFiles(dir string) bool {
 		}
 	}
 	return true
-}
-
-func passiveSubdomains(root, runDir, target string) error {
-	fmt.Println("[reconx] passive profile: collecting passive subdomain sources")
-	rawDir := filepath.Join(runDir, "raw")
-	normalizedDir := filepath.Join(runDir, "normalized")
-
-	subfinderOut := filepath.Join(rawDir, "subfinder.txt")
-	if _, err := exec.LookPath("subfinder"); err == nil {
-		cmd := exec.Command("subfinder", "-d", target, "-all", "-recursive", "-silent", "-o", subfinderOut)
-		cmd.Dir = root
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Env = deps.WithGoBinFirst(os.Environ())
-		_ = cmd.Run()
-	} else {
-		_ = os.WriteFile(subfinderOut, nil, 0o644)
-	}
-
-	names, err := fetchCrtSH(target)
-	if err != nil {
-		fmt.Fprintf(os.Stdout, "[reconx] crt.sh skipped: %v\n", err)
-	}
-	crtOut := filepath.Join(rawDir, "crtsh.txt")
-	_ = os.WriteFile(crtOut, []byte(strings.Join(names, "\n")), 0o644)
-
-	collected := map[string]struct{}{}
-	for _, file := range []string{subfinderOut, crtOut} {
-		data, _ := os.ReadFile(file)
-		for _, line := range strings.Split(string(data), "\n") {
-			name := normalizeDomain(line)
-			if name != "" {
-				collected[name] = struct{}{}
-			}
-		}
-	}
-
-	list := make([]string, 0, len(collected))
-	for name := range collected {
-		list = append(list, name)
-	}
-	sort.Strings(list)
-	content := strings.Join(list, "\n")
-	if content != "" {
-		content += "\n"
-	}
-	if err := os.WriteFile(filepath.Join(normalizedDir, "subdomains.all.txt"), []byte(content), 0o644); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(normalizedDir, "subdomains.txt"), []byte(content), 0o644)
-}
-
-func normalizeDomain(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	value = strings.TrimPrefix(value, "*.")
-	value = strings.TrimSuffix(value, ".")
-	if value == "" || strings.ContainsAny(value, " \t/") {
-		return ""
-	}
-	return value
-}
-
-func fetchCrtSH(target string) ([]string, error) {
-	url := "https://crt.sh/?q=%25." + target + "&output=json"
-	client := http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var rows []struct {
-		NameValue string `json:"name_value"`
-	}
-	if err := json.Unmarshal(body, &rows); err != nil {
-		return nil, err
-	}
-
-	seen := map[string]struct{}{}
-	for _, row := range rows {
-		for _, item := range strings.Split(row.NameValue, "\n") {
-			name := normalizeDomain(item)
-			if name != "" {
-				seen[name] = struct{}{}
-			}
-		}
-	}
-	out := make([]string, 0, len(seen))
-	for name := range seen {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out, nil
 }
