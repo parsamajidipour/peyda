@@ -16,6 +16,7 @@ type Config struct {
 	CrawlDepth     int    `json:"crawl_depth"`
 	CrawlDuration  string `json:"crawl_duration"`
 	MaxDomainPages int    `json:"max_domain_pages"`
+	MaxJSDownloads int    `json:"max_js_downloads"`
 	APIRate        int    `json:"api_rate"`
 	PortRate       int    `json:"port_rate"`
 	ExcludedFile   string `json:"excluded_file"`
@@ -207,8 +208,8 @@ func DefaultTools() Tools {
 		Naabu: NaabuTool{
 			TopPorts:         "full",
 			ScanAllIPs:       true,
-			ServiceDiscovery: true,
-			ServiceVersion:   true,
+			ServiceDiscovery: false,
+			ServiceVersion:   false,
 			Verify:           true,
 			Passive:          true,
 		},
@@ -226,13 +227,13 @@ func DefaultTools() Tools {
 			KnownFiles:        "all",
 			FieldScope:        "rdn",
 			Strategy:          "depth-first",
-			Headless:          true,
+			Headless:          false,
 			XHRExtraction:     true,
-			JSLuice:           true,
+			JSLuice:           false,
 			FormExtraction:    true,
 			TechDetect:        true,
 			PathClimb:         true,
-			KnowledgeBase:     true,
+			KnowledgeBase:     false,
 			Concurrency:       5,
 			Parallelism:       5,
 			HostRateLimit:     2,
@@ -264,6 +265,9 @@ func (c *Config) ApplyDefaults() error {
 	if c.MaxDomainPages == 0 {
 		c.MaxDomainPages = 5000
 	}
+	if c.MaxJSDownloads == 0 {
+		c.MaxJSDownloads = 500
+	}
 	if c.APIRate == 0 {
 		c.APIRate = 10
 	}
@@ -283,6 +287,7 @@ func Example() Config {
 	cfg.CrawlDepth = 5
 	cfg.CrawlDuration = "30m"
 	cfg.MaxDomainPages = 5000
+	cfg.MaxJSDownloads = 500
 	cfg.APIRate = 10
 	cfg.PortRate = 25
 	return cfg

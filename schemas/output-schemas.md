@@ -11,12 +11,15 @@ results/example.com/
 ├── subdomains.txt
 ├── resolved.txt
 ├── live.txt
+├── ips.txt
+├── ports.txt
 ├── urls.txt
 ├── parameters.txt
 ├── javascript.txt
 ├── endpoints.txt
 ├── dns.json
 ├── http.json
+├── ports.json
 ├── technologies.json
 └── summary.json
 ```
@@ -28,6 +31,8 @@ Text files contain one deduplicated item per line and are sorted whenever practi
 | `subdomains.txt` | In-scope hostnames |
 | `resolved.txt` | In-scope hostnames that resolved |
 | `live.txt` | Reachable HTTP/S URLs |
+| `ips.txt` | Unique IPv4/IPv6 addresses observed from DNS records |
+| `ports.txt` | Open TCP ports as `host:port service` |
 | `urls.txt` | Normalized in-scope URLs |
 | `parameters.txt` | Parameter names only |
 | `javascript.txt` | In-scope JavaScript URLs |
@@ -72,6 +77,19 @@ Text files contain one deduplicated item per line and are sorted whenever practi
 ]
 ```
 
+`ports.json` is an array of open TCP ports:
+
+```json
+[
+  {
+    "host": "api.example.com",
+    "port": 443,
+    "service": "https",
+    "source": "naabu,nmap"
+  }
+]
+```
+
 `technologies.json` groups best-effort technology hints by host:
 
 ```json
@@ -91,6 +109,8 @@ Text files contain one deduplicated item per line and are sorted whenever practi
   "subdomains": 481,
   "resolved": 302,
   "live_hosts": 174,
+  "ips": 18,
+  "open_ports": 96,
   "urls": 18342,
   "javascript_files": 428,
   "parameters": 91,

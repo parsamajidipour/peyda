@@ -38,6 +38,10 @@ func Run(root string, cfg config.Config) error {
 	if cfg.OutputFormat == "human" && !cfg.Silent {
 		statusOut = os.Stdout
 	}
+	moduleOut := logOut
+	if cfg.OutputFormat == "human" && !cfg.Silent {
+		moduleOut = statusOut
+	}
 	status := func(message string) {
 		fmt.Fprintf(statusOut, "[INF] %s\n", message)
 	}
@@ -60,7 +64,7 @@ func Run(root string, cfg config.Config) error {
 		RunDir: runDir,
 		Target: cfg.Target,
 		Tools:  cfg.Tools,
-		Out:    logOut,
+		Out:    moduleOut,
 	}); err != nil {
 		return err
 	}
@@ -74,20 +78,11 @@ func Run(root string, cfg config.Config) error {
 		Resolve:   true,
 		Probe:     true,
 		Tools:     cfg.Tools,
-		Out:       logOut,
+		Out:       moduleOut,
 	}); err != nil {
 		return err
 	}
 
-	status("Scanning optional ports and services")
-	if _, err := ports.Run(ports.Options{
-		RunDir: runDir,
-		Rate:   cfg.PortRate,
-		Tools:  cfg.Tools,
-		Out:    logOut,
-	}); err != nil {
-		fmt.Fprintf(logOut, "[peyda] port scan skipped or failed: %v\n", err)
-	}
 	status("Collecting historical URLs")
 	if err := urlrecon.RunGau(urlrecon.Options{
 		RunDir: runDir,
@@ -97,7 +92,26 @@ func Run(root string, cfg config.Config) error {
 	}); err != nil {
 		fmt.Fprintf(logOut, "[peyda] gau URL collection skipped or failed: %v\n", err)
 	}
-	status("Crawling live targets and extracting JavaScript")
+	status("Enriching subdomains from URL hosts")
+	if _, err := subdomain.EnrichFromURLs(subdomain.Options{
+		Root:      root,
+		RunDir:    runDir,
+		Target:    cfg.Target,
+		ProbeRate: cfg.ProbeRate,
+		Resolve:   true,
+		Probe:     true,
+		Tools:     cfg.Tools,
+		Out:       moduleOut,
+	}); err != nil {
+		fmt.Fprintf(logOut, "[peyda] URL host enrichment skipped or failed: %v\n", err)
+	}
+	status(fmt.Sprintf(
+		"Crawling live targets and extracting JavaScript (depth=%d duration=%s max_pages=%d max_js_downloads=%d)",
+		cfg.CrawlDepth,
+		cfg.CrawlDuration,
+		cfg.MaxDomainPages,
+		cfg.MaxJSDownloads,
+	))
 	if _, err := jsrecon.Run(jsrecon.Options{
 		Root:           root,
 		RunDir:         runDir,
@@ -106,8 +120,9 @@ func Run(root string, cfg config.Config) error {
 		CrawlDepth:     cfg.CrawlDepth,
 		CrawlDuration:  cfg.CrawlDuration,
 		MaxDomainPages: cfg.MaxDomainPages,
+		MaxJSDownloads: cfg.MaxJSDownloads,
 		Tools:          cfg.Tools,
-		Out:            logOut,
+		Out:            moduleOut,
 	}); err != nil {
 		fmt.Fprintf(logOut, "[peyda] JS recon skipped or failed: %v\n", err)
 	}
@@ -116,9 +131,31 @@ func Run(root string, cfg config.Config) error {
 		RunDir: runDir,
 		Target: cfg.Target,
 		Tools:  cfg.Tools,
-		Out:    logOut,
+		Out:    moduleOut,
 	}); err != nil {
 		fmt.Fprintf(logOut, "[peyda] URL/parameter recon skipped or failed: %v\n", err)
+	}
+	status("Rechecking URL-discovered hosts")
+	if _, err := subdomain.EnrichFromURLs(subdomain.Options{
+		Root:      root,
+		RunDir:    runDir,
+		Target:    cfg.Target,
+		ProbeRate: cfg.ProbeRate,
+		Resolve:   true,
+		Probe:     true,
+		Tools:     cfg.Tools,
+		Out:       moduleOut,
+	}); err != nil {
+		fmt.Fprintf(logOut, "[peyda] URL host recheck skipped or failed: %v\n", err)
+	}
+	status("Scanning optional ports and services")
+	if _, err := ports.Run(ports.Options{
+		RunDir: runDir,
+		Rate:   cfg.PortRate,
+		Tools:  cfg.Tools,
+		Out:    moduleOut,
+	}); err != nil {
+		fmt.Fprintf(logOut, "[peyda] port scan skipped or failed: %v\n", err)
 	}
 	status("Running extended API and cloud analysis")
 	if _, err := apidiscovery.Run(apidiscovery.Options{
@@ -126,7 +163,7 @@ func Run(root string, cfg config.Config) error {
 		RunDir:    runDir,
 		ProbeRate: cfg.APIRate,
 		Tools:     cfg.Tools,
-		Out:       logOut,
+		Out:       moduleOut,
 	}); err != nil {
 		return err
 	}
@@ -158,6 +195,9 @@ func Run(root string, cfg config.Config) error {
 	})
 	if err != nil {
 		return err
+	}
+	if cfg.OutputFormat == "human" && !cfg.Silent {
+		fmt.Fprintln(os.Stdout)
 	}
 	return report.WriteDatasetOutput(os.Stdout, cfg, summary)
 }

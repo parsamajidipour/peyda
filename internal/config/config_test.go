@@ -18,6 +18,7 @@ func TestApplyDefaultsUsesSingleDeepMode(t *testing.T) {
 		cfg.CrawlDepth != 5 ||
 		cfg.CrawlDuration != "30m" ||
 		cfg.MaxDomainPages != 5000 ||
+		cfg.MaxJSDownloads != 500 ||
 		cfg.APIRate != 10 ||
 		cfg.PortRate != 25 {
 		t.Fatalf("defaults = %+v", cfg)
@@ -85,13 +86,15 @@ func TestDefaultToolsUseDeepIntensity(t *testing.T) {
 	if !cfg.Tools.HTTPX.TLSGrab || !cfg.Tools.HTTPX.ProbeAllIPs || cfg.Tools.HTTPX.Timeout != 20 {
 		t.Fatalf("httpx settings = %+v", cfg.Tools.HTTPX)
 	}
-	if cfg.Tools.Naabu.TopPorts != "full" || !cfg.Tools.Naabu.ScanAllIPs || !cfg.Tools.Naabu.ServiceVersion {
+	if cfg.Tools.Naabu.TopPorts != "full" || !cfg.Tools.Naabu.ScanAllIPs ||
+		cfg.Tools.Naabu.ServiceDiscovery || cfg.Tools.Naabu.ServiceVersion {
 		t.Fatalf("naabu settings = %+v", cfg.Tools.Naabu)
 	}
 	if cfg.Tools.Gau.Retries != 5 || cfg.Tools.Gau.Timeout != 120 || cfg.Tools.Gau.Threads != 1 {
 		t.Fatalf("gau settings = %+v", cfg.Tools.Gau)
 	}
-	if !cfg.Tools.Katana.Headless || !cfg.Tools.Katana.XHRExtraction || cfg.Tools.Katana.KnownFiles != "all" {
+	if cfg.Tools.Katana.Headless || cfg.Tools.Katana.JSLuice || cfg.Tools.Katana.KnowledgeBase ||
+		!cfg.Tools.Katana.XHRExtraction || cfg.Tools.Katana.KnownFiles != "all" {
 		t.Fatalf("katana settings = %+v", cfg.Tools.Katana)
 	}
 }

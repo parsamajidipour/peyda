@@ -28,6 +28,8 @@ type Summary struct {
 	Subdomains      int     `json:"subdomains"`
 	Resolved        int     `json:"resolved"`
 	LiveHosts       int     `json:"live_hosts"`
+	IPs             int     `json:"ips"`
+	OpenPorts       int     `json:"open_ports"`
 	URLs            int     `json:"urls"`
 	JavaScriptFiles int     `json:"javascript_files"`
 	Parameters      int     `json:"parameters"`
@@ -70,11 +72,20 @@ type TechnologyAsset struct {
 	Technologies []string `json:"technologies"`
 }
 
+type PortAsset struct {
+	Host    string `json:"host"`
+	Port    int    `json:"port"`
+	Service string `json:"service"`
+	Source  string `json:"source"`
+}
+
 type builtDataset struct {
 	Target       string
 	Subdomains   []string
 	Resolved     []string
 	Live         []string
+	IPs          []string
+	Ports        []PortAsset
 	URLs         []string
 	Parameters   []string
 	JavaScript   []string
@@ -116,6 +127,8 @@ func Export(opts Options) (Summary, error) {
 		Subdomains:      len(ds.Subdomains),
 		Resolved:        len(ds.Resolved),
 		LiveHosts:       len(ds.Live),
+		IPs:             len(ds.IPs),
+		OpenPorts:       len(ds.Ports),
 		URLs:            len(ds.URLs),
 		JavaScriptFiles: len(ds.JavaScript),
 		Parameters:      len(ds.Parameters),
@@ -133,6 +146,9 @@ func Export(opts Options) (Summary, error) {
 		return Summary{}, err
 	}
 	if err := writeJSONAtomic(filepath.Join(tempDir, "http.json"), ds.HTTP); err != nil {
+		return Summary{}, err
+	}
+	if err := writeJSONAtomic(filepath.Join(tempDir, "ports.json"), ds.Ports); err != nil {
 		return Summary{}, err
 	}
 	if err := writeJSONAtomic(filepath.Join(tempDir, "technologies.json"), ds.Technologies); err != nil {
@@ -168,7 +184,15 @@ func build(runDir, target string) builtDataset {
 	resolved := sortedKeys(resolvedSet)
 
 	live, httpAssets := buildHTTP(runDir, target)
+	ports := buildPorts(runDir, target)
+	ips := ipsFromDNS(dns)
 	urls := scopedURLs(target, readLines(filepath.Join(runDir, "normalized/urls.txt")))
+	for _, liveURL := range live {
+		urls = addSortedUnique(urls, liveURL)
+	}
+	for _, host := range hostsFromURLs(target, urls) {
+		subdomains = addSortedUnique(subdomains, host)
+	}
 	parameters := buildParameters(runDir, urls)
 	javascript := scopedJS(target, readLines(filepath.Join(runDir, "normalized/js-files.txt")))
 	endpoints := scopedEndpoints(target, readLines(filepath.Join(runDir, "normalized/js-endpoints.txt")))
@@ -179,6 +203,8 @@ func build(runDir, target string) builtDataset {
 		Subdomains:   subdomains,
 		Resolved:     resolved,
 		Live:         live,
+		IPs:          ips,
+		Ports:        ports,
 		URLs:         urls,
 		Parameters:   parameters,
 		JavaScript:   javascript,
@@ -194,6 +220,8 @@ func writeTextFiles(dir string, ds builtDataset) error {
 		"subdomains.txt": ds.Subdomains,
 		"resolved.txt":   ds.Resolved,
 		"live.txt":       ds.Live,
+		"ips.txt":        ds.IPs,
+		"ports.txt":      renderPorts(ds.Ports),
 		"urls.txt":       ds.URLs,
 		"parameters.txt": ds.Parameters,
 		"javascript.txt": ds.JavaScript,
@@ -205,6 +233,49 @@ func writeTextFiles(dir string, ds builtDataset) error {
 		}
 	}
 	return nil
+}
+
+func buildPorts(runDir, target string) []PortAsset {
+	seen := map[string]PortAsset{}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/open-ports.tsv")) {
+		host := normalizeHost(row["host"])
+		if !inScopeHost(host, target) {
+			continue
+		}
+		port, err := strconv.Atoi(strings.TrimSpace(row["port"]))
+		if err != nil || port <= 0 || port > 65535 {
+			continue
+		}
+		key := fmt.Sprintf("%s:%d", host, port)
+		seen[key] = PortAsset{
+			Host:    host,
+			Port:    port,
+			Service: strings.TrimSpace(row["service"]),
+			Source:  strings.TrimSpace(row["source"]),
+		}
+	}
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]PortAsset, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, seen[key])
+	}
+	return out
+}
+
+func renderPorts(ports []PortAsset) []string {
+	out := make([]string, 0, len(ports))
+	for _, port := range ports {
+		service := port.Service
+		if service == "" {
+			service = "unknown"
+		}
+		out = append(out, fmt.Sprintf("%s:%d\t%s", port.Host, port.Port, service))
+	}
+	return out
 }
 
 func buildDNS(runDir, target string) []DNSAsset {
@@ -219,33 +290,23 @@ func buildDNS(runDir, target string) []DNSAsset {
 		if value == "" {
 			continue
 		}
-		asset := byHost[host]
-		if asset == nil {
-			asset = &DNSAsset{Host: host}
-			byHost[host] = asset
+		addDNSValue(byHost, host, recordType, value)
+	}
+	for _, line := range readLines(filepath.Join(runDir, "normalized/resolved.txt")) {
+		host := normalizeHost(firstField(line))
+		if !inScopeHost(host, target) {
+			continue
 		}
-		switch recordType {
-		case "A":
-			asset.A = appendUnique(asset.A, value)
-		case "AAAA":
-			asset.AAAA = appendUnique(asset.AAAA, value)
-		case "CNAME":
-			asset.CNAME = appendUnique(asset.CNAME, value)
-		case "MX":
-			asset.MX = appendUnique(asset.MX, value)
-		case "NS":
-			asset.NS = appendUnique(asset.NS, value)
-		case "TXT":
-			asset.TXT = appendUnique(asset.TXT, value)
-		case "SOA":
-			asset.SOA = appendUnique(asset.SOA, value)
-		case "CAA":
-			asset.CAA = appendUnique(asset.CAA, value)
-		case "DNSKEY":
-			asset.DNSKEY = appendUnique(asset.DNSKEY, value)
-		case "DS":
-			asset.DS = appendUnique(asset.DS, value)
+		brackets := extractBrackets(line)
+		if len(brackets) < 2 {
+			continue
 		}
+		recordType := strings.ToUpper(strings.TrimSpace(brackets[0]))
+		value := strings.TrimSpace(brackets[1])
+		if value == "" {
+			continue
+		}
+		addDNSValue(byHost, host, recordType, value)
 	}
 	assets := make([]DNSAsset, 0, len(byHost))
 	for _, asset := range byHost {
@@ -254,6 +315,48 @@ func buildDNS(runDir, target string) []DNSAsset {
 	}
 	sort.Slice(assets, func(i, j int) bool { return assets[i].Host < assets[j].Host })
 	return assets
+}
+
+func addDNSValue(byHost map[string]*DNSAsset, host, recordType, value string) {
+	asset := byHost[host]
+	if asset == nil {
+		asset = &DNSAsset{Host: host}
+		byHost[host] = asset
+	}
+	switch recordType {
+	case "A":
+		asset.A = appendUnique(asset.A, value)
+	case "AAAA":
+		asset.AAAA = appendUnique(asset.AAAA, value)
+	case "CNAME":
+		asset.CNAME = appendUnique(asset.CNAME, value)
+	case "MX":
+		asset.MX = appendUnique(asset.MX, value)
+	case "NS":
+		asset.NS = appendUnique(asset.NS, value)
+	case "TXT":
+		asset.TXT = appendUnique(asset.TXT, value)
+	case "SOA":
+		asset.SOA = appendUnique(asset.SOA, value)
+	case "CAA":
+		asset.CAA = appendUnique(asset.CAA, value)
+	case "DNSKEY":
+		asset.DNSKEY = appendUnique(asset.DNSKEY, value)
+	case "DS":
+		asset.DS = appendUnique(asset.DS, value)
+	}
+}
+
+func ipsFromDNS(records []DNSAsset) []string {
+	seen := map[string]struct{}{}
+	for _, record := range records {
+		for _, ip := range append(record.A, record.AAAA...) {
+			if ip != "" {
+				seen[ip] = struct{}{}
+			}
+		}
+	}
+	return sortedKeys(seen)
 }
 
 func buildHTTP(runDir, target string) ([]string, []HTTPAsset) {
@@ -289,20 +392,24 @@ func parseHTTPAsset(line string) HTTPAsset {
 	}
 	brackets := extractBrackets(line)
 	asset := HTTPAsset{URL: fields[0]}
-	if len(brackets) > 0 {
-		asset.Status, _ = strconv.Atoi(brackets[0])
+	var remaining []string
+	for _, value := range brackets {
+		switch {
+		case asset.Status == 0 && looksLikeStatus(value):
+			asset.Status = finalStatusCode(value)
+		case asset.ContentLength == 0 && looksLikeInteger(value):
+			asset.ContentLength, _ = strconv.Atoi(value)
+		case asset.ContentType == "" && strings.Contains(value, "/"):
+			asset.ContentType = value
+		default:
+			remaining = append(remaining, value)
+		}
 	}
-	if len(brackets) > 1 {
-		asset.ContentLength, _ = strconv.Atoi(brackets[1])
+	if len(remaining) > 0 {
+		asset.Title = remaining[0]
 	}
-	if len(brackets) > 2 {
-		asset.Title = brackets[2]
-	}
-	if len(brackets) > 3 {
-		asset.ContentType = brackets[3]
-	}
-	if len(brackets) > 4 {
-		asset.Technologies = splitCSVish(brackets[len(brackets)-1])
+	if len(remaining) > 1 {
+		asset.Technologies = splitCSVish(remaining[len(remaining)-1])
 	}
 	return asset
 }
@@ -370,6 +477,17 @@ func scopedURLs(target string, lines []string) []string {
 		clean := normalizeURL(firstField(line))
 		if clean != "" && inScopeURL(clean, target) {
 			seen[clean] = struct{}{}
+		}
+	}
+	return sortedKeys(seen)
+}
+
+func hostsFromURLs(target string, urls []string) []string {
+	seen := map[string]struct{}{}
+	for _, rawURL := range urls {
+		host := hostFromURL(rawURL)
+		if inScopeHost(host, target) {
+			seen[host] = struct{}{}
 		}
 	}
 	return sortedKeys(seen)
@@ -612,6 +730,23 @@ func splitCSVish(value string) []string {
 		return r == ',' || r == ';'
 	})
 	return uniqueSorted(parts)
+}
+
+func looksLikeStatus(value string) bool {
+	return regexp.MustCompile(`^[0-9]{3}(,[0-9]{3})*$`).MatchString(value)
+}
+
+func finalStatusCode(value string) int {
+	parts := strings.Split(value, ",")
+	if len(parts) == 0 {
+		return 0
+	}
+	status, _ := strconv.Atoi(parts[len(parts)-1])
+	return status
+}
+
+func looksLikeInteger(value string) bool {
+	return regexp.MustCompile(`^[0-9]+$`).MatchString(value)
 }
 
 func appendUnique(values []string, value string) []string {

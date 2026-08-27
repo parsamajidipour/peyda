@@ -29,12 +29,15 @@ results/example.com/
 ├── subdomains.txt
 ├── resolved.txt
 ├── live.txt
+├── ips.txt
+├── ports.txt
 ├── urls.txt
 ├── parameters.txt
 ├── javascript.txt
 ├── endpoints.txt
 ├── dns.json
 ├── http.json
+├── ports.json
 ├── technologies.json
 └── summary.json
 ```
@@ -46,12 +49,15 @@ These files are meant to be piped into other tools, reviewed manually, or archiv
 | `subdomains.txt` | Unique in-scope hostnames discovered for the target |
 | `resolved.txt` | In-scope hostnames that resolved through DNS |
 | `live.txt` | Reachable HTTP/S URLs with the working scheme preserved |
+| `ips.txt` | Unique IPv4/IPv6 addresses observed from DNS records |
+| `ports.txt` | Open TCP ports as `host:port service` |
 | `urls.txt` | Normalized unique URLs from historical sources and crawling |
 | `parameters.txt` | Unique parameter names only |
 | `javascript.txt` | Unique in-scope JavaScript URLs |
 | `endpoints.txt` | Interesting relative or in-scope absolute routes/endpoints |
 | `dns.json` | Structured DNS records grouped by host |
 | `http.json` | Asset-oriented HTTP metadata |
+| `ports.json` | Structured open ports from `naabu` and `nmap` enrichment |
 | `technologies.json` | Best-effort technology hints per host |
 | `summary.json` | Counts derived from the final exported dataset |
 
@@ -139,20 +145,23 @@ peyda example.com
 At the end, Peyda prints a concise summary:
 
 ```text
-PEYDA
-
-Target: example.com
+PEYDA SUMMARY
+--------------------------------------------
+Target           example.com
 
 Subdomains       481
 Resolved         302
 Live hosts       174
+IPs              18
+Open ports       96
 URLs             18342
 Parameters       91
 JavaScript       428
 Endpoints        637
 
-Output: results/example.com/
-Duration: 2m41s
+Results          results/example.com/
+Completed in     2m41s
+--------------------------------------------
 ```
 
 The main dataset is immediately available at:
@@ -224,20 +233,23 @@ less "$latest_run/notes/recon-report.txt"
 By default, `peyda` prints progress and a final summary, not every collected result:
 
 ```text
-PEYDA
-
-Target: example.com
+PEYDA SUMMARY
+--------------------------------------------
+Target           example.com
 
 Subdomains       31
 Resolved         24
 Live hosts       18
+IPs              7
+Open ports       24
 URLs             683
 Parameters       42
 JavaScript       27
 Endpoints        91
 
-Output: results/example.com/
-Duration: 47s
+Results          results/example.com/
+Completed in     47s
+--------------------------------------------
 ```
 
 Open `results/example.com/` first. Use `runs/example.com/YYYY-MM-DD/` only when you need raw tool output or troubleshooting details.
@@ -251,12 +263,15 @@ results/example.com/
 ├── subdomains.txt
 ├── resolved.txt
 ├── live.txt
+├── ips.txt
+├── ports.txt
 ├── urls.txt
 ├── parameters.txt
 ├── javascript.txt
 ├── endpoints.txt
 ├── dns.json
 ├── http.json
+├── ports.json
 ├── technologies.json
 └── summary.json
 ```
@@ -322,6 +337,7 @@ Default limits:
   "crawl_depth": 5,
   "crawl_duration": "30m",
   "max_domain_pages": 5000,
+  "max_js_downloads": 500,
   "api_rate": 10,
   "port_rate": 25
 }
@@ -337,17 +353,17 @@ The default mode tunes both workflow depth and the underlying tool flags.
 
 | Tool | Default behavior |
 | --- | --- |
-| `whois` | Verbose lookup with `--verbose` |
+| `whois` | Verbose lookup first, with automatic fallback to standard WHOIS when verbose output is not useful |
 | `dig` | Baseline records plus DNSSEC-oriented records, delegation trace, and NS search |
 | `subfinder` | `-all -recursive`, longer timeout and max-time |
 | `dnsx` | A, AAAA, CNAME, NS, MX, TXT, SOA, CAA with trace |
 | `httpx` | Parse-friendly live probing plus rich JSONL fingerprinting |
-| `naabu` | Full port range, all resolved IPs, verification, provider hints, service/version discovery |
-| `nmap` | Service enrichment for discovered ports |
+| `naabu` | Full port range, all resolved IPs, verification, and passive provider hints |
+| `nmap` | Service/version enrichment for discovered ports |
 | `gau` | All providers with higher retry/timeout and lower threading |
-| `katana` | Headless crawl, XHR extraction, JSLuice, forms, known files, path climb, knowledge base |
-| `Arjun` | Optional parameter probing after URL normalization |
-| `xnLinkFinder` | Optional JavaScript endpoint extraction after JS download |
+| `katana` | Deep crawl, JavaScript crawl, XHR extraction, forms, known files, path climb, scoped filtering |
+| `Arjun` | Optional parameter probing after URL normalization with quiet output, bounded request timeout, and controlled rate |
+| `xnLinkFinder` | Optional JavaScript endpoint extraction after JS download with bounded local processing |
 
 ## Configuration Model
 
@@ -401,6 +417,7 @@ Example: keep the run polite and bounded.
   "crawl_depth": 5,
   "crawl_duration": "30m",
   "max_domain_pages": 5000,
+  "max_js_downloads": 500,
   "api_rate": 10,
   "port_rate": 25
 }
@@ -415,6 +432,7 @@ Meaning:
 | `crawl_depth` | Maximum crawl depth |
 | `crawl_duration` | Maximum crawl time, such as `30s`, `2m`, `5m`, or `30m` |
 | `max_domain_pages` | Maximum pages Katana should crawl per domain |
+| `max_js_downloads` | Maximum discovered JavaScript files to download for local endpoint extraction |
 | `api_rate` | Rate limit for API docs/schema probing |
 | `port_rate` | Rate limit for Naabu port probing |
 
@@ -471,8 +489,8 @@ automatically and skipped gracefully if they are not installed.
     "naabu": {
       "top_ports": "full",
       "scan_all_ips": true,
-      "service_discovery": true,
-      "service_version": true,
+      "service_discovery": false,
+      "service_version": false,
       "verify": true,
       "passive": true
     },
@@ -490,14 +508,14 @@ automatically and skipped gracefully if they are not installed.
       "known_files": "all",
       "field_scope": "rdn",
       "strategy": "depth-first",
-      "headless": true,
+      "headless": false,
       "xhr_extraction": true,
       "display_out_scope": false,
-      "jsluice": true,
+      "jsluice": false,
       "form_extraction": true,
       "tech_detect": true,
       "path_climb": true,
-      "knowledge_base": true,
+      "knowledge_base": false,
       "store_field": "",
       "concurrency": 5,
       "parallelism": 5,
@@ -539,13 +557,21 @@ peyda run --config peyda.json -p 15 --crawl-duration 30s
 }
 ```
 
-Maps to:
+Peyda first tries:
 
 ```bash
 whois --verbose example.com
 ```
 
-Verbose WHOIS is enabled by default.
+If the verbose response does not contain useful registration fields, Peyda falls
+back to:
+
+```bash
+whois example.com
+```
+
+Verbose WHOIS is enabled by default, but the final stored WHOIS file should be
+useful rather than blindly verbose.
 
 ### Dig
 
@@ -727,8 +753,8 @@ Turn off technology detection:
     "naabu": {
       "top_ports": "full",
       "scan_all_ips": true,
-      "service_discovery": true,
-      "service_version": true,
+      "service_discovery": false,
+      "service_version": false,
       "verify": true,
       "passive": true
     }
@@ -742,11 +768,12 @@ Maps to:
 naabu -list normalized/resolved-hosts.txt \
   -silent -nc -rate 25 \
   -top-ports full -scan-all-ips \
-  -service-discovery -service-version -verify -passive \
+  -verify -passive \
   -o raw/naabu.txt
 ```
 
-The full port set and lower rate are enabled by default.
+The full port set and lower rate are enabled by default. Service and version
+enrichment is handled by `nmap` after `naabu` returns open ports.
 
 ### Gau
 
@@ -785,17 +812,17 @@ noisy provider failures.
       "js_crawl": true,
       "ignore_query_params": true,
       "filter_similar": true,
-      "known_files": "",
+      "known_files": "all",
       "field_scope": "rdn",
       "strategy": "depth-first",
-      "headless": true,
+      "headless": false,
       "xhr_extraction": true,
       "display_out_scope": false,
-      "jsluice": true,
+      "jsluice": false,
       "form_extraction": true,
       "tech_detect": true,
       "path_climb": true,
-      "knowledge_base": true,
+      "knowledge_base": false,
       "concurrency": 5,
       "parallelism": 5,
       "host_rate_limit": 2
@@ -810,7 +837,7 @@ Maps to crawling similar to:
 katana -list normalized/live-urls.txt \
   -silent -nc \
   -d 5 -ct 30m -mdp 5000 -rl 5 -c 5 -p 5 -hrl 2 \
-  -jc -jsl -iqp -fsu -hl -xhr -fx -td -pc -kb \
+  -jc -iqp -fsu -kf all -xhr -fx -td -pc \
   -fs rdn -s depth-first \
   -o raw/katana-urls.txt
 ```
@@ -823,14 +850,14 @@ katana -list normalized/live-urls.txt \
 | `known_files` | Crawls known files with `-kf`, such as `robotstxt,sitemapxml` |
 | `field_scope` | Controls Katana scope with `-fs`; default is `rdn` |
 | `strategy` | Crawl strategy: `depth-first` or `breadth-first` |
-| `headless` | Enables browser-based crawling with `-hl` |
-| `xhr_extraction` | Captures XHR URLs with `-xhr` when headless mode is enabled |
+| `headless` | Enables browser-based crawling with `-hl`; keep this off unless you specifically need browser rendering |
+| `xhr_extraction` | Captures XHR URLs with `-xhr` |
 | `display_out_scope` | Displays out-of-scope endpoints with `-do`; normalized recon output still filters to target scope |
-| `jsluice` | Enables memory-intensive JavaScript parsing with `-jsl` |
+| `jsluice` | Enables memory-intensive JavaScript parsing with `-jsl`; useful for focused runs, risky as a global default |
 | `form_extraction` | Extracts forms and inputs with `-fx` |
 | `tech_detect` | Enables Katana technology detection |
 | `path_climb` | Crawls parent paths with `-pc` |
-| `knowledge_base` | Enables knowledge-base classification |
+| `knowledge_base` | Enables knowledge-base classification; keep off if Katana returns unexpectedly low output |
 | `concurrency` | Katana fetcher concurrency |
 | `parallelism` | Number of inputs processed in parallel |
 | `host_rate_limit` | Per-host crawl rate limit |
@@ -854,6 +881,7 @@ Use headless crawling for modern apps:
 {
   "crawl_duration": "2m",
   "max_domain_pages": 150,
+  "max_js_downloads": 100,
   "tools": {
     "katana": {
       "headless": true,
@@ -864,6 +892,8 @@ Use headless crawling for modern apps:
 ```
 
 Headless crawling is heavier. Use it only when the target is in scope and the program allows browser automation.
+JavaScript URLs are still listed in the final dataset; `max_js_downloads` only
+limits how many files are downloaded locally for endpoint extraction.
 
 ### Arjun
 
@@ -880,6 +910,17 @@ Headless crawling is heavier. Use it only when the target is in scope and the pr
 When enabled and installed, `peyda` runs Arjun after URL normalization and merges
 parameter candidates into `normalized/parameters.tsv`.
 
+Maps to:
+
+```bash
+arjun -i normalized/live-urls.txt \
+  -oJ raw/arjun.json \
+  -q -T 10 -t 5 --rate-limit 5
+```
+
+Peyda gives Arjun a bounded execution window. If Arjun is slow or blocked by the
+target, the main recon workflow keeps going with parameters extracted from URLs.
+
 ### XNLinkFinder
 
 ```json
@@ -894,6 +935,17 @@ parameter candidates into `normalized/parameters.tsv`.
 
 When enabled and installed, `peyda` runs `xnLinkFinder` against downloaded
 JavaScript files and merges endpoints into `normalized/js-endpoints.txt`.
+
+Maps to:
+
+```bash
+xnLinkFinder -i raw/js \
+  -o raw/xnlinkfinder.txt \
+  -ow -ascii-only -t 10 -p 5
+```
+
+Native JavaScript route extraction still runs as a fallback, so endpoint output
+does not depend on `xnLinkFinder` succeeding.
 
 ## Workflow Graph
 
@@ -949,7 +1001,8 @@ Polite custom run:
   "target": "example.com",
   "probe_rate": 25,
   "crawl_duration": "30s",
-  "max_domain_pages": 50
+  "max_domain_pages": 50,
+  "max_js_downloads": 50
 }
 ```
 
@@ -990,7 +1043,7 @@ Start with the final dataset:
 
 ```bash
 cd results/example.com
-wc -l subdomains.txt resolved.txt live.txt urls.txt parameters.txt javascript.txt endpoints.txt
+wc -l subdomains.txt resolved.txt live.txt ips.txt ports.txt urls.txt parameters.txt javascript.txt endpoints.txt
 jq . summary.json
 ```
 
@@ -1027,7 +1080,7 @@ jq -r 'select(.type=="js_route") | .value' "$latest_run/normalized/recon-events.
 | `httpx` looks like the Python CLI | PATH collision | Run `peyda deps`; `$HOME/go/bin` is preferred |
 | `crt.sh` returns `429` or `502` | External rate limiting or service issue | `peyda` continues with other sources |
 | Very few subdomains | No provider API keys or small public footprint | Add provider config for ProjectDiscovery tools and rerun |
-| Too much crawl output | Crawl caps too high | Lower `crawl_duration`, `crawl_depth`, or `max_domain_pages` |
+| Too much crawl output | Crawl caps too high | Lower `crawl_duration`, `crawl_depth`, `max_domain_pages`, or `max_js_downloads` |
 | JS recon is skipped | `katana` missing or failed | Run `peyda deps --update` |
 | Report has many low-value assets | CDN or soft-404 behavior | Start with `notes/interesting-hosts.txt` and `asset-scores.tsv` |
 | Lead looks sensitive | Scope or data risk unclear | Stop and confirm authorization before validation |

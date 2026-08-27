@@ -97,7 +97,7 @@ func runNaabu(input, output string, tool config.NaabuTool, rate int) []PortRecor
 	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	if err := cmd.Run(); err != nil {
-		return nil
+		return parseNaabu(readLines(output))
 	}
 	return parseNaabu(readLines(output))
 }

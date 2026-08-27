@@ -58,22 +58,32 @@ func collectWHOIS(runDir, target string, tool config.WHOISTool) int {
 		args = append(args, "--verbose")
 	}
 	args = append(args, target)
-	cmd := exec.Command(path, args...)
-	cmd.Env = deps.WithGoBinFirst(os.Environ())
-	data, err := cmd.Output()
+	data, err := runWHOIS(path, args...)
 	if err != nil {
 		_ = writeLines(tsv, lines)
 		return 0
 	}
+	fields := parseWHOIS(string(data))
+	if tool.Verbose && len(fields) == 0 {
+		if fallback, err := runWHOIS(path, target); err == nil && len(parseWHOIS(string(fallback))) > 0 {
+			data = fallback
+			fields = parseWHOIS(string(data))
+		}
+	}
 	_ = os.WriteFile(output, data, 0o644)
 
-	fields := parseWHOIS(string(data))
 	keys := sortedKeys(fields)
 	for _, key := range keys {
 		lines = append(lines, key+"\t"+sanitize(fields[key]))
 	}
 	_ = writeLines(tsv, lines)
 	return len(keys)
+}
+
+func runWHOIS(path string, args ...string) ([]byte, error) {
+	cmd := exec.Command(path, args...)
+	cmd.Env = deps.WithGoBinFirst(os.Environ())
+	return cmd.Output()
 }
 
 func parseWHOIS(data string) map[string]string {

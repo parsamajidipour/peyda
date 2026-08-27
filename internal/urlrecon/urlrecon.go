@@ -2,6 +2,7 @@ package urlrecon
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/parsamajidipour/peyda/internal/config"
 	"github.com/parsamajidipour/peyda/internal/deps"
@@ -152,8 +154,17 @@ func runArjun(runDir string, tool config.ArjunTool) []string {
 		return nil
 	}
 	output := filepath.Join(runDir, "raw/arjun.json")
-	args := []string{"-i", filepath.Join(runDir, "normalized/live-urls.txt"), "-oJ", output}
-	cmd := exec.Command(path, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	args := []string{
+		"-i", filepath.Join(runDir, "normalized/live-urls.txt"),
+		"-oJ", output,
+		"-q",
+		"-T", "10",
+		"-t", "5",
+		"--rate-limit", "5",
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
@@ -229,8 +240,17 @@ func runXNLinkFinder(runDir string, tool config.XNLinkFinderTool) []string {
 	}
 	jsDir := filepath.Join(runDir, "raw/js")
 	output := filepath.Join(runDir, "raw/xnlinkfinder.txt")
-	args := []string{"-i", jsDir, "-o", output}
-	cmd := exec.Command(path, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	args := []string{
+		"-i", jsDir,
+		"-o", output,
+		"-ow",
+		"-ascii-only",
+		"-t", "10",
+		"-p", "5",
+	}
+	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())

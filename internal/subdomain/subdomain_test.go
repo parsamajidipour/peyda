@@ -38,13 +38,92 @@ func TestNormalizeAndFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := normalizeAndFilter(runDir)
+	got, err := normalizeAndFilter(runDir, "example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.Join([]string{"api.example.com", "app.example.com"}, "\n")
+	want := strings.Join([]string{"api.example.com", "app.example.com", "example.com", "www.example.com"}, "\n")
 	if strings.Join(got, "\n") != want {
 		t.Fatalf("filtered = %v", got)
+	}
+}
+
+func TestNormalizeAndFilterSeedsApexAndWWW(t *testing.T) {
+	runDir := t.TempDir()
+	for _, dir := range []string{"raw", "normalized"} {
+		if err := os.MkdirAll(filepath.Join(runDir, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "raw/subfinder.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "raw/crtsh.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := normalizeAndFilter(runDir, "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Join([]string{"example.com", "www.example.com"}, "\n")
+	if strings.Join(got, "\n") != want {
+		t.Fatalf("filtered = %v", got)
+	}
+}
+
+func TestURLDiscoveredHosts(t *testing.T) {
+	runDir := t.TempDir()
+	for _, dir := range []string{"raw", "normalized"} {
+		if err := os.MkdirAll(filepath.Join(runDir, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	input := strings.Join([]string{
+		"http://api.sooq-cars.com/",
+		"https://app.sooq-cars.com/links/abc?x=1",
+		"https://om.sooq-cars.com/.well-known/security.txt",
+		"https://sooq-cars.com/coming-soon/",
+		"https://sooq-cars.com.attacker.net/pwn",
+		"not-a-url",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(runDir, "raw/gau-urls.txt"), []byte(input+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := strings.Join(urlDiscoveredHosts(runDir, "sooq-cars.com"), "\n")
+	want := strings.Join([]string{
+		"api.sooq-cars.com",
+		"app.sooq-cars.com",
+		"om.sooq-cars.com",
+		"sooq-cars.com",
+	}, "\n")
+	if got != want {
+		t.Fatalf("url hosts = %q, want %q", got, want)
+	}
+}
+
+func TestMergeSubdomainsAddsURLHosts(t *testing.T) {
+	runDir := t.TempDir()
+	for _, dir := range []string{"normalized"} {
+		if err := os.MkdirAll(filepath.Join(runDir, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "normalized/subdomains.txt"), []byte("sooq-cars.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "excluded.txt"), []byte("qa.sooq-cars.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := mergeSubdomains(runDir, []string{"api.sooq-cars.com", "qa.sooq-cars.com", "app.sooq-cars.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.Join([]string{"api.sooq-cars.com", "app.sooq-cars.com", "sooq-cars.com"}, "\n")
+	if strings.Join(got, "\n") != want {
+		t.Fatalf("merged = %v", got)
 	}
 }
 

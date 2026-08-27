@@ -23,9 +23,11 @@ func TestExportCreatesStableDataset(t *testing.T) {
 		"example.com.attacker.net",
 	}, "\n")+"\n")
 	writeFixture(t, runDir, "normalized/resolved-hosts.txt", "app.example.com\napi.example.com\napi.example.com\nnotexample.com\n")
+	writeFixture(t, runDir, "normalized/resolved.txt", "api.example.com [A] [2.2.2.2]\napp.example.com [CNAME] [proxy.example.net]\n")
 	writeFixture(t, runDir, "normalized/dns-records.tsv", "type\tname\tvalue\nA\texample.com\t1.2.3.4\nMX\texample.com\tmail.example.com\nA\texample.com.attacker.net\t5.6.7.8\n")
-	writeFixture(t, runDir, "normalized/live-hosts.txt", "https://api.example.com [200] [18420] [API] [application/json] [nginx,Go]\nhttps://evil-example.com [200] [1] [Bad] [text/html] [Apache]\n")
-	writeFixture(t, runDir, "normalized/urls.txt", "https://api.example.com/users?id=1#frag\nhttps://api.example.com/users?id=1\nhttps://example.com/login?redirect=/home\nhttps://example.com.attacker.net/pwn?id=1\n")
+	writeFixture(t, runDir, "normalized/live-hosts.txt", "https://api.example.com [301,200] [18420] [application/json] [API] [nginx,Go]\nhttps://evil-example.com [200] [1] [text/html] [Bad] [Apache]\n")
+	writeFixture(t, runDir, "normalized/open-ports.tsv", "host\tport\tservice\tsource\napi.example.com\t443\thttps\tnaabu,nmap\napi.example.com\t70000\tbad\tnaabu\nexample.com.attacker.net\t443\thttps\tnaabu\n")
+	writeFixture(t, runDir, "normalized/urls.txt", "https://api.example.com/users?id=1#frag\nhttps://api.example.com/users?id=1\nhttps://dashboard.example.com/\nhttps://example.com/login?redirect=/home\nhttps://example.com.attacker.net/pwn?id=1\n")
 	writeFixture(t, runDir, "normalized/parameters.tsv", "name\turl\tsource\nid\thttps://api.example.com/users?id=\turl\nredirect\thttps://example.com/login?redirect=\turl\nbad name\thttps://api.example.com\turl\n")
 	writeFixture(t, runDir, "normalized/js-files.txt", "https://example.com/assets/app.js\nhttps://example.com/assets/app.js\nhttps://example.com.attacker.net/app.js\n")
 	writeFixture(t, runDir, "normalized/js-endpoints.txt", "/api/v1/users\nhttps://api.example.com/v1/orders\nhttps://example.com.attacker.net/v1/orders\nnot-a-route\n")
@@ -48,11 +50,15 @@ func TestExportCreatesStableDataset(t *testing.T) {
 		}
 	}
 
-	assertLines(t, filepath.Join(resultDir, "subdomains.txt"), []string{"api.example.com", "app.example.com", "example.com"})
+	assertLines(t, filepath.Join(resultDir, "subdomains.txt"), []string{"api.example.com", "app.example.com", "dashboard.example.com", "example.com"})
 	assertLines(t, filepath.Join(resultDir, "resolved.txt"), []string{"api.example.com", "app.example.com", "example.com"})
 	assertLines(t, filepath.Join(resultDir, "live.txt"), []string{"https://api.example.com"})
+	assertLines(t, filepath.Join(resultDir, "ips.txt"), []string{"1.2.3.4", "2.2.2.2"})
+	assertLines(t, filepath.Join(resultDir, "ports.txt"), []string{"api.example.com:443\thttps"})
 	assertLines(t, filepath.Join(resultDir, "urls.txt"), []string{
+		"https://api.example.com",
 		"https://api.example.com/users?id=1",
+		"https://dashboard.example.com/",
 		"https://example.com/login?redirect=/home",
 	})
 	assertLines(t, filepath.Join(resultDir, "parameters.txt"), []string{"id", "redirect"})
@@ -62,6 +68,8 @@ func TestExportCreatesStableDataset(t *testing.T) {
 	if summary.Subdomains != countLines(t, filepath.Join(resultDir, "subdomains.txt")) ||
 		summary.Resolved != countLines(t, filepath.Join(resultDir, "resolved.txt")) ||
 		summary.LiveHosts != countLines(t, filepath.Join(resultDir, "live.txt")) ||
+		summary.IPs != countLines(t, filepath.Join(resultDir, "ips.txt")) ||
+		summary.OpenPorts != countLines(t, filepath.Join(resultDir, "ports.txt")) ||
 		summary.URLs != countLines(t, filepath.Join(resultDir, "urls.txt")) ||
 		summary.Parameters != countLines(t, filepath.Join(resultDir, "parameters.txt")) ||
 		summary.JavaScriptFiles != countLines(t, filepath.Join(resultDir, "javascript.txt")) ||
@@ -71,13 +79,17 @@ func TestExportCreatesStableDataset(t *testing.T) {
 
 	var dns []DNSAsset
 	readJSON(t, filepath.Join(resultDir, "dns.json"), &dns)
-	if len(dns) != 1 || dns[0].Host != "example.com" || !reflect.DeepEqual(dns[0].A, []string{"1.2.3.4"}) {
+	if len(dns) != 3 || dns[1].Host != "app.example.com" || !reflect.DeepEqual(dns[2].A, []string{"1.2.3.4"}) {
 		t.Fatalf("dns.json = %+v", dns)
 	}
 
 	var httpAssets []HTTPAsset
 	readJSON(t, filepath.Join(resultDir, "http.json"), &httpAssets)
-	if len(httpAssets) != 1 || httpAssets[0].Host != "api.example.com" || httpAssets[0].Status != 200 {
+	if len(httpAssets) != 1 ||
+		httpAssets[0].Host != "api.example.com" ||
+		httpAssets[0].Status != 200 ||
+		httpAssets[0].Title != "API" ||
+		httpAssets[0].ContentType != "application/json" {
 		t.Fatalf("http.json = %+v", httpAssets)
 	}
 
@@ -140,12 +152,15 @@ func requiredFiles() []string {
 		"subdomains.txt",
 		"resolved.txt",
 		"live.txt",
+		"ips.txt",
+		"ports.txt",
 		"urls.txt",
 		"parameters.txt",
 		"javascript.txt",
 		"endpoints.txt",
 		"dns.json",
 		"http.json",
+		"ports.json",
 		"technologies.json",
 		"summary.json",
 	}

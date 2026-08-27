@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/parsamajidipour/peyda/internal/config"
@@ -27,6 +28,7 @@ type Options struct {
 	CrawlDepth     int
 	CrawlDuration  string
 	MaxDomainPages int
+	MaxJSDownloads int
 	Tools          config.Tools
 	Out            io.Writer
 }
@@ -66,6 +68,9 @@ func Run(opts Options) (Result, error) {
 	}
 	if opts.MaxDomainPages == 0 {
 		opts.MaxDomainPages = 75
+	}
+	if opts.MaxJSDownloads == 0 {
+		opts.MaxJSDownloads = 500
 	}
 	if opts.Out == nil {
 		opts.Out = os.Stdout
@@ -114,11 +119,16 @@ func Run(opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	log("[js] Downloading JavaScript files...")
+	downloadTargets := prioritizeJavaScript(jsFiles, opts.MaxJSDownloads)
+	if len(downloadTargets) < len(jsFiles) {
+		log("[js] Downloading JavaScript files... total=%d selected=%d", len(jsFiles), len(downloadTargets))
+	} else {
+		log("[js] Downloading JavaScript files... total=%d", len(downloadTargets))
+	}
 	if err := resetDir(filepath.Join(opts.RunDir, "raw/js")); err != nil {
 		return Result{}, err
 	}
-	downloaded, err := downloadJavaScript(opts.RunDir, jsFiles)
+	downloaded, err := downloadJavaScript(opts.RunDir, downloadTargets, opts.Tools.Katana.Concurrency, log)
 	if err != nil {
 		return Result{}, err
 	}
@@ -207,14 +217,167 @@ func runKatana(opts Options) error {
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
-	if err := cmd.Run(); err != nil {
-		return err
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Run()
+	}()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case err := <-done:
+			if err != nil {
+				return err
+			}
+			file, err := os.OpenFile(output, os.O_CREATE, 0o644)
+			if err != nil {
+				return err
+			}
+			return file.Close()
+		case <-ticker.C:
+			fmt.Fprintf(opts.Out, "[js] katana still running... urls=%d\n", countLines(output))
+		}
 	}
-	file, err := os.OpenFile(output, os.O_CREATE, 0o644)
+}
+
+func prioritizeJavaScript(urls []string, limit int) []string {
+	if limit <= 0 || len(urls) <= limit {
+		return urls
+	}
+	score := func(value string) int {
+		lower := strings.ToLower(value)
+		points := 0
+		for _, needle := range []string{"api", "auth", "login", "user", "admin", "dashboard", "account", "payment", "checkout", "config", "env"} {
+			if strings.Contains(lower, needle) {
+				points += 10
+			}
+		}
+		if strings.Contains(lower, "_next/static/chunks") || strings.Contains(lower, "/assets/") {
+			points += 3
+		}
+		if strings.Contains(lower, "cdn-cgi") || strings.Contains(lower, "challenge-platform") {
+			points -= 20
+		}
+		if strings.Contains(lower, ".map") {
+			points -= 5
+		}
+		return points
+	}
+
+	prioritized := append([]string(nil), urls...)
+	sort.SliceStable(prioritized, func(i, j int) bool {
+		left := score(prioritized[i])
+		right := score(prioritized[j])
+		if left == right {
+			return prioritized[i] < prioritized[j]
+		}
+		return left > right
+	})
+	return prioritized[:limit]
+}
+
+func downloadJavaScript(runDir string, urls []string, concurrency int, log func(string, ...any)) (int, error) {
+	if concurrency <= 0 {
+		concurrency = 5
+	}
+	if concurrency > 10 {
+		concurrency = 10
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	jobs := make(chan string)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	count := 0
+	processed := 0
+	var firstErr error
+
+	worker := func() {
+		defer wg.Done()
+		for rawURL := range jobs {
+			ok, err := fetchJavaScript(client, runDir, rawURL)
+			mu.Lock()
+			processed++
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+			if ok {
+				count++
+			}
+			if log != nil && (processed == len(urls) || processed%100 == 0) {
+				log("[js] download progress %d/%d saved=%d", processed, len(urls), count)
+			}
+			mu.Unlock()
+		}
+	}
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go worker()
+	}
+	for _, rawURL := range urls {
+		if strings.HasPrefix(rawURL, "http://") || strings.HasPrefix(rawURL, "https://") {
+			jobs <- rawURL
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	return count, firstErr
+}
+
+func countLines(path string) int {
+	file, err := os.Open(path)
 	if err != nil {
-		return err
+		return 0
 	}
-	return file.Close()
+	defer file.Close()
+
+	count := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		count++
+	}
+	return count
+}
+
+func fetchJavaScript(client *http.Client, runDir, rawURL string) (bool, error) {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return false, nil
+	}
+	req.Header.Set("User-Agent", "peyda-recon")
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return false, nil
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, nil
+	}
+	output := filepath.Join(runDir, "raw/js", safeName(rawURL))
+	if err := os.WriteFile(output, body, 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func normalizeKatanaOutput(runDir, target string) ([]string, []string, error) {
+	output := filepath.Join(runDir, "raw/katana-urls.txt")
+	all := unique(readLines(output))
+	if err := writeLines(filepath.Join(runDir, "raw/katana-urls.all.txt"), all); err != nil {
+		return nil, nil, err
+	}
+
+	scoped := filterInScopeURLs(all, target)
+	if err := writeLines(output, scoped); err != nil {
+		return nil, nil, err
+	}
+	return all, scoped, nil
 }
 
 func katanaArgs(tool config.KatanaTool, input, output string, opts Options) []string {
@@ -284,20 +447,6 @@ func katanaArgs(tool config.KatanaTool, input, output string, opts Options) []st
 	return append(args, "-o", output)
 }
 
-func normalizeKatanaOutput(runDir, target string) ([]string, []string, error) {
-	output := filepath.Join(runDir, "raw/katana-urls.txt")
-	all := unique(readLines(output))
-	if err := writeLines(filepath.Join(runDir, "raw/katana-urls.all.txt"), all); err != nil {
-		return nil, nil, err
-	}
-
-	scoped := filterInScopeURLs(all, target)
-	if err := writeLines(output, scoped); err != nil {
-		return nil, nil, err
-	}
-	return all, scoped, nil
-}
-
 func filterInScopeURLs(lines []string, target string) []string {
 	target = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(target)), "*.")
 	target = strings.TrimSuffix(target, ".")
@@ -360,31 +509,6 @@ func resetDir(path string) error {
 		return err
 	}
 	return os.MkdirAll(path, 0o755)
-}
-
-func downloadJavaScript(runDir string, urls []string) (int, error) {
-	client := http.Client{Timeout: 20 * time.Second}
-	count := 0
-	for _, rawURL := range urls {
-		if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
-			continue
-		}
-		resp, err := client.Get(rawURL)
-		if err != nil {
-			continue
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil || resp.StatusCode >= 400 {
-			continue
-		}
-		output := filepath.Join(runDir, "raw/js", safeName(rawURL))
-		if err := os.WriteFile(output, body, 0o644); err != nil {
-			return count, err
-		}
-		count++
-	}
-	return count, nil
 }
 
 func extractFromRun(runDir string, crawled []string) ([]string, []string, []string) {

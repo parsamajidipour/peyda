@@ -77,6 +77,7 @@ Examples:
   peyda deps
   peyda example.com -silent
   peyda example.com -jsonl -o results.jsonl
+  peyda example.com --crawl-duration 2m --max-js-downloads 500
   peyda run example.com -p 25
   peyda run example.com --no-jsonl
   peyda config init -o peyda.json
@@ -102,6 +103,7 @@ func runCommand(args []string) error {
 	crawlDepth := fs.Int("crawl-depth", 0, "maximum crawler depth")
 	crawlDuration := fs.String("crawl-duration", "", "maximum crawler duration, e.g. 45s or 5m")
 	maxDomainPages := fs.Int("max-domain-pages", 0, "maximum crawled pages per domain")
+	maxJSDownloads := fs.Int("max-js-downloads", 0, "maximum JavaScript files to download for local endpoint extraction")
 	skipDeps := fs.Bool("skip-deps", false, "skip dependency preparation")
 	noJSONL := fs.Bool("no-jsonl", false, "disable normalized/recon-events.jsonl")
 	silent := fs.Bool("silent", false, "print only the final dataset directory")
@@ -150,6 +152,9 @@ func runCommand(args []string) error {
 	if *maxDomainPages > 0 {
 		cfg.MaxDomainPages = *maxDomainPages
 	}
+	if *maxJSDownloads > 0 {
+		cfg.MaxJSDownloads = *maxJSDownloads
+	}
 	if *skipDeps {
 		cfg.SkipDeps = true
 	}
@@ -197,6 +202,7 @@ func extractRunTarget(args []string) (string, []string, error) {
 		"--crawl-depth":      {},
 		"--crawl-duration":   {},
 		"--max-domain-pages": {},
+		"--max-js-downloads": {},
 	}
 
 	var target string

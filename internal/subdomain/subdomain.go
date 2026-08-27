@@ -2,10 +2,12 @@ package subdomain
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,7 +91,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	log("[3/7] Normalizing and applying exclusions...")
-	subdomains, err := normalizeAndFilter(opts.RunDir)
+	subdomains, err := normalizeAndFilter(opts.RunDir, opts.Target)
 	if err != nil {
 		return Result{}, err
 	}
@@ -140,6 +142,80 @@ func Run(opts Options) (Result, error) {
 
 	log("[subdomain] subdomains=%d resolved=%d live=%d interesting=%d",
 		result.Subdomains, result.ResolvedHosts, result.LiveServices, result.InterestingHosts)
+	return result, nil
+}
+
+func EnrichFromURLs(opts Options) (Result, error) {
+	if opts.ProbeRate == 0 {
+		opts.ProbeRate = 50
+	}
+	if opts.Out == nil {
+		opts.Out = os.Stdout
+	}
+	if err := ensureDirs(opts.RunDir); err != nil {
+		return Result{}, err
+	}
+
+	logPath := filepath.Join(opts.RunDir, "notes/subdomain.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return Result{}, err
+	}
+	defer logFile.Close()
+
+	log := func(format string, args ...any) {
+		fmt.Fprintf(opts.Out, format+"\n", args...)
+		fmt.Fprintf(logFile, format+"\n", args...)
+	}
+
+	hosts := urlDiscoveredHosts(opts.RunDir, opts.Target)
+	if len(hosts) == 0 {
+		log("[subdomain] no URL-discovered hosts to enrich")
+		return Result{}, nil
+	}
+	if err := writeLines(filepath.Join(opts.RunDir, "normalized/subdomains.url-hosts.txt"), hosts); err != nil {
+		return Result{}, err
+	}
+
+	merged, err := mergeSubdomains(opts.RunDir, hosts)
+	if err != nil {
+		return Result{}, err
+	}
+	log("[subdomain] URL host enrichment candidates=%d total=%d", len(hosts), len(merged))
+
+	result := Result{Subdomains: len(merged)}
+	if !opts.Resolve {
+		return result, nil
+	}
+
+	resolvedHosts, err := resolveHosts(opts)
+	if err != nil {
+		return result, err
+	}
+	result.ResolvedHosts = len(resolvedHosts)
+	if !opts.Probe {
+		return result, nil
+	}
+
+	liveServices, err := probeHTTP(opts)
+	if err != nil {
+		return result, err
+	}
+	result.LiveServices = len(liveServices)
+
+	scores, err := ScoreLiveHosts(filepath.Join(opts.RunDir, "normalized/live-hosts.txt"), loadKeywords(opts.Root))
+	if err != nil {
+		return result, err
+	}
+	if err := writeScores(filepath.Join(opts.RunDir, "normalized/asset-scores.tsv"), scores); err != nil {
+		return result, err
+	}
+	interesting := interestingLines(scores, 30)
+	result.InterestingHosts = len(interesting)
+	if err := writeLines(filepath.Join(opts.RunDir, "notes/interesting-hosts.txt"), interesting); err != nil {
+		return result, err
+	}
+	log("[subdomain] enriched resolved=%d live=%d interesting=%d", result.ResolvedHosts, result.LiveServices, result.InterestingHosts)
 	return result, nil
 }
 
@@ -220,9 +296,14 @@ func probeHTTP(opts Options) ([]string, error) {
 	input := filepath.Join(opts.RunDir, "normalized/resolved-hosts.txt")
 	output := filepath.Join(opts.RunDir, "normalized/live-hosts.txt")
 	_ = os.Remove(output)
-	err = runTool(
+	fmt.Fprintf(opts.Out, "[subdomain] httpx probing started...\n")
+	err = runToolWithProgress(
 		opts.Root,
 		httpxPath,
+		output,
+		"[subdomain] httpx",
+		opts.Out,
+		2*time.Minute,
 		httpxArgs(opts.Tools.HTTPX, input, output, opts.ProbeRate)...,
 	)
 	if err != nil {
@@ -231,7 +312,16 @@ func probeHTTP(opts Options) ([]string, error) {
 	if usesRichHTTPX(opts.Tools.HTTPX) {
 		richOutput := filepath.Join(opts.RunDir, "raw/httpx-rich.jsonl")
 		_ = os.Remove(richOutput)
-		_ = runTool(opts.Root, httpxPath, richHTTPXArgs(opts.Tools.HTTPX, input, richOutput, opts.ProbeRate)...)
+		fmt.Fprintf(opts.Out, "[subdomain] httpx rich fingerprinting started...\n")
+		_ = runToolWithProgress(
+			opts.Root,
+			httpxPath,
+			richOutput,
+			"[subdomain] httpx-rich",
+			opts.Out,
+			2*time.Minute,
+			richHTTPXArgs(opts.Tools.HTTPX, input, richOutput, opts.ProbeRate)...,
+		)
 	}
 	return readLines(output), nil
 }
@@ -356,12 +446,62 @@ func runTool(root, path string, args ...string) error {
 	return cmd.Run()
 }
 
-func normalizeAndFilter(runDir string) ([]string, error) {
+func runToolWithProgress(root, path, output, label string, out io.Writer, timeout time.Duration, args ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Dir = root
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	cmd.Env = deps.WithGoBinFirst(os.Environ())
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Run()
+	}()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case err := <-done:
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Fprintf(out, "%s timeout reached; continuing with partial results=%d\n", label, countLines(output))
+				return nil
+			}
+			return err
+		case <-ticker.C:
+			fmt.Fprintf(out, "%s still running... results=%d\n", label, countLines(output))
+		}
+	}
+}
+
+func countLines(path string) int {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer file.Close()
+
+	count := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		count++
+	}
+	return count
+}
+
+func normalizeAndFilter(runDir, target string) ([]string, error) {
 	rawSubfinder := readLines(filepath.Join(runDir, "raw/subfinder.txt"))
 	rawCRT := readLines(filepath.Join(runDir, "raw/crtsh.txt"))
 	excluded := readSet(filepath.Join(runDir, "excluded.txt"))
 
 	allSet := map[string]struct{}{}
+	if name := NormalizeDomain(target); name != "" {
+		allSet[name] = struct{}{}
+		allSet["www."+name] = struct{}{}
+	}
 	for _, line := range append(rawSubfinder, rawCRT...) {
 		name := NormalizeDomain(line)
 		if name != "" {
@@ -384,6 +524,82 @@ func normalizeAndFilter(runDir string) ([]string, error) {
 		return nil, err
 	}
 	return filtered, nil
+}
+
+func mergeSubdomains(runDir string, additions []string) ([]string, error) {
+	excluded := readSet(filepath.Join(runDir, "excluded.txt"))
+	allSet := map[string]struct{}{}
+	for _, line := range append(
+		readLines(filepath.Join(runDir, "normalized/subdomains.all.txt")),
+		readLines(filepath.Join(runDir, "normalized/subdomains.txt"))...,
+	) {
+		if name := NormalizeDomain(line); name != "" {
+			allSet[name] = struct{}{}
+		}
+	}
+	for _, line := range additions {
+		if name := NormalizeDomain(line); name != "" {
+			allSet[name] = struct{}{}
+		}
+	}
+
+	all := sortedKeys(allSet)
+	filtered := make([]string, 0, len(all))
+	for _, name := range all {
+		if _, skip := excluded[name]; !skip {
+			filtered = append(filtered, name)
+		}
+	}
+	if err := writeLines(filepath.Join(runDir, "normalized/subdomains.all.txt"), all); err != nil {
+		return nil, err
+	}
+	if err := writeLines(filepath.Join(runDir, "normalized/subdomains.txt"), filtered); err != nil {
+		return nil, err
+	}
+	return filtered, nil
+}
+
+func urlDiscoveredHosts(runDir, target string) []string {
+	seen := map[string]struct{}{}
+	for _, path := range []string{
+		filepath.Join(runDir, "raw/gau-urls.txt"),
+		filepath.Join(runDir, "raw/katana-urls.txt"),
+		filepath.Join(runDir, "normalized/urls.txt"),
+	} {
+		for _, line := range readLines(path) {
+			host := hostFromHTTPURL(firstField(line))
+			if host != "" && inScopeHost(host, target) {
+				seen[host] = struct{}{}
+			}
+		}
+	}
+	return sortedKeys(seen)
+}
+
+func hostFromHTTPURL(value string) string {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return ""
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return ""
+	}
+	return NormalizeDomain(parsed.Hostname())
+}
+
+func firstField(line string) string {
+	fields := strings.Fields(strings.TrimSpace(line))
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
+func inScopeHost(host, target string) bool {
+	host = NormalizeDomain(host)
+	target = NormalizeDomain(target)
+	return host != "" && target != "" && (host == target || strings.HasSuffix(host, "."+target))
 }
 
 func NormalizeDomain(value string) string {

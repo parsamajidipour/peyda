@@ -64,7 +64,7 @@ var goTools = []goTool{
 }
 
 var requiredSystemTools []string
-var optionalSystemTools = []string{"rg", "whois", "dig", "nmap", "arjun", "xnLinkFinder", "xnlinkfinder"}
+var optionalSystemTools = []string{"rg", "whois", "dig", "nmap", "arjun", "xnLinkFinder"}
 
 func (m Manager) Run(mode Mode) error {
 	if m.Out == nil {

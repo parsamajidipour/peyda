@@ -113,18 +113,26 @@ func RenderDatasetSummary(summary dataset.Summary, silent bool) string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintln(&b, "PEYDA")
+	separator := strings.Repeat("-", 44)
+	duration := formatDuration(time.Duration(summary.DurationSeconds * float64(time.Second)))
+
+	fmt.Fprintln(&b, "PEYDA SUMMARY")
+	fmt.Fprintln(&b, separator)
+	fmt.Fprintf(&b, "%-16s %s\n", "Target", summary.Target)
 	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, "Target: %s\n\n", summary.Target)
 	fmt.Fprintf(&b, "%-16s %d\n", "Subdomains", summary.Subdomains)
 	fmt.Fprintf(&b, "%-16s %d\n", "Resolved", summary.Resolved)
 	fmt.Fprintf(&b, "%-16s %d\n", "Live hosts", summary.LiveHosts)
+	fmt.Fprintf(&b, "%-16s %d\n", "IPs", summary.IPs)
+	fmt.Fprintf(&b, "%-16s %d\n", "Open ports", summary.OpenPorts)
 	fmt.Fprintf(&b, "%-16s %d\n", "URLs", summary.URLs)
 	fmt.Fprintf(&b, "%-16s %d\n", "Parameters", summary.Parameters)
 	fmt.Fprintf(&b, "%-16s %d\n", "JavaScript", summary.JavaScriptFiles)
-	fmt.Fprintf(&b, "%-16s %d\n\n", "Endpoints", summary.Endpoints)
-	fmt.Fprintf(&b, "Output: %s\n", output)
-	fmt.Fprintf(&b, "Duration: %s\n", formatDuration(time.Duration(summary.DurationSeconds*float64(time.Second))))
+	fmt.Fprintf(&b, "%-16s %d\n", "Endpoints", summary.Endpoints)
+	fmt.Fprintln(&b)
+	fmt.Fprintf(&b, "%-16s %s\n", "Results", output)
+	fmt.Fprintf(&b, "%-16s %s\n", "Completed in", duration)
+	fmt.Fprintln(&b, separator)
 	return b.String()
 }
 
@@ -166,6 +174,20 @@ func renderDatasetJSONL(summary dataset.Summary) (string, error) {
 			return "", err
 		}
 	}
+	for _, ip := range results.IPs {
+		if err := enc.Encode(OutputRecord{Type: "ip", Value: ip}); err != nil {
+			return "", err
+		}
+	}
+	for _, item := range results.Ports {
+		record := parseDatasetPort(item)
+		if record.Host == "" {
+			continue
+		}
+		if err := enc.Encode(record); err != nil {
+			return "", err
+		}
+	}
 	for _, item := range results.URLs {
 		if err := enc.Encode(OutputRecord{Type: "url", URL: item}); err != nil {
 			return "", err
@@ -193,6 +215,8 @@ type datasetResults struct {
 	Subdomains   []string `json:"subdomains"`
 	Resolved     []string `json:"resolved"`
 	Live         []string `json:"live"`
+	IPs          []string `json:"ips"`
+	Ports        []string `json:"ports"`
 	URLs         []string `json:"urls"`
 	Parameters   []string `json:"parameters"`
 	JavaScript   []string `json:"javascript"`
@@ -207,14 +231,34 @@ func readDatasetResults(resultDir string) (datasetResults, error) {
 	results.Subdomains = nonNilStrings(readLines(filepath.Join(resultDir, "subdomains.txt")))
 	results.Resolved = nonNilStrings(readLines(filepath.Join(resultDir, "resolved.txt")))
 	results.Live = nonNilStrings(readLines(filepath.Join(resultDir, "live.txt")))
+	results.IPs = nonNilStrings(readLines(filepath.Join(resultDir, "ips.txt")))
+	results.Ports = nonNilStrings(readLines(filepath.Join(resultDir, "ports.txt")))
 	results.URLs = nonNilStrings(readLines(filepath.Join(resultDir, "urls.txt")))
 	results.Parameters = nonNilStrings(readLines(filepath.Join(resultDir, "parameters.txt")))
 	results.JavaScript = nonNilStrings(readLines(filepath.Join(resultDir, "javascript.txt")))
 	results.Endpoints = nonNilStrings(readLines(filepath.Join(resultDir, "endpoints.txt")))
 	results.DNS = readJSONAny(filepath.Join(resultDir, "dns.json"))
 	results.HTTP = readJSONAny(filepath.Join(resultDir, "http.json"))
+	results.Ports = nonNilStrings(results.Ports)
 	results.Technologies = readJSONAny(filepath.Join(resultDir, "technologies.json"))
 	return results, nil
+}
+
+func parseDatasetPort(line string) OutputRecord {
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return OutputRecord{}
+	}
+	host, portText, ok := strings.Cut(fields[0], ":")
+	if !ok {
+		return OutputRecord{}
+	}
+	port, _ := strconv.Atoi(portText)
+	record := OutputRecord{Type: "port", Host: host, Port: port}
+	if len(fields) > 1 {
+		record.Service = fields[1]
+	}
+	return record
 }
 
 func nonNilStrings(values []string) []string {

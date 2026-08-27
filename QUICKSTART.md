@@ -135,12 +135,15 @@ results/example.com/
 ├── subdomains.txt
 ├── resolved.txt
 ├── live.txt
+├── ips.txt
+├── ports.txt
 ├── urls.txt
 ├── parameters.txt
 ├── javascript.txt
 ├── endpoints.txt
 ├── dns.json
 ├── http.json
+├── ports.json
 ├── technologies.json
 └── summary.json
 ```

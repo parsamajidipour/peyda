@@ -121,6 +121,8 @@ func TestRenderDatasetSummaryIsConcise(t *testing.T) {
 		Subdomains:      3,
 		Resolved:        2,
 		LiveHosts:       1,
+		IPs:             2,
+		OpenPorts:       4,
 		URLs:            10,
 		Parameters:      4,
 		JavaScriptFiles: 2,
@@ -131,11 +133,13 @@ func TestRenderDatasetSummaryIsConcise(t *testing.T) {
 
 	got := RenderDatasetSummary(summary, false)
 	for _, want := range []string{
-		"PEYDA",
-		"Target: example.com",
+		"PEYDA SUMMARY",
+		"Target           example.com",
 		"Subdomains       3",
-		"Output: ",
-		"Duration: 2m1s",
+		"IPs              2",
+		"Open ports       4",
+		"Results          ",
+		"Completed in     2m1s",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("summary missing %q:\n%s", want, got)
@@ -154,12 +158,15 @@ func TestRenderDatasetOutputUsesFinalDataset(t *testing.T) {
 	writeTestFile(t, filepath.Join(resultDir, "subdomains.txt"), "example.com\napi.example.com\n")
 	writeTestFile(t, filepath.Join(resultDir, "resolved.txt"), "api.example.com\n")
 	writeTestFile(t, filepath.Join(resultDir, "live.txt"), "https://api.example.com\n")
+	writeTestFile(t, filepath.Join(resultDir, "ips.txt"), "1.2.3.4\n")
+	writeTestFile(t, filepath.Join(resultDir, "ports.txt"), "api.example.com:443\thttps\n")
 	writeTestFile(t, filepath.Join(resultDir, "urls.txt"), "https://api.example.com/users?id=1\n")
 	writeTestFile(t, filepath.Join(resultDir, "parameters.txt"), "id\n")
 	writeTestFile(t, filepath.Join(resultDir, "javascript.txt"), "https://api.example.com/app.js\n")
 	writeTestFile(t, filepath.Join(resultDir, "endpoints.txt"), "/api/v1/users\n")
 	writeTestFile(t, filepath.Join(resultDir, "dns.json"), "[]\n")
 	writeTestFile(t, filepath.Join(resultDir, "http.json"), "[]\n")
+	writeTestFile(t, filepath.Join(resultDir, "ports.json"), "[]\n")
 	writeTestFile(t, filepath.Join(resultDir, "technologies.json"), "[]\n")
 
 	summary := dataset.Summary{Target: "example.com", Subdomains: 2, ResultDir: resultDir}
@@ -179,6 +186,8 @@ func TestRenderDatasetOutputUsesFinalDataset(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(jsonlOut, `"type":"subdomain","host":"api.example.com"`) ||
+		!strings.Contains(jsonlOut, `"type":"ip","value":"1.2.3.4"`) ||
+		!strings.Contains(jsonlOut, `"type":"port","host":"api.example.com","port":443,"service":"https"`) ||
 		!strings.Contains(jsonlOut, `"type":"js_endpoint","endpoint":"/api/v1/users"`) {
 		t.Fatalf("jsonl output did not use final dataset:\n%s", jsonlOut)
 	}
