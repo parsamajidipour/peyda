@@ -1,0 +1,5 @@
+# One excluded host or domain per line.
+# Keep excluded assets visible so they are not accidentally reintroduced.
+support.example.com
+status.example.com
+third-party.example.com

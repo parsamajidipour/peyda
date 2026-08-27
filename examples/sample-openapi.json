@@ -1,0 +1,29 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Example SaaS API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/users/me": {
+      "get": {
+        "summary": "Get current user"
+      }
+    },
+    "/v1/workspaces/{workspaceId}/members": {
+      "get": {
+        "summary": "List workspace members"
+      }
+    },
+    "/v1/workspaces/{workspaceId}/billing/export": {
+      "post": {
+        "summary": "Export workspace billing data"
+      }
+    },
+    "/v1/users/{userId}": {
+      "patch": {
+        "summary": "Update user"
+      }
+    }
+  }
+}

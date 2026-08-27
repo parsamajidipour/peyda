@@ -1,0 +1,4 @@
+# One allowed root domain or host per line.
+# Replace these placeholders with explicit in-scope assets from the program policy.
+example.com
+api.example.com

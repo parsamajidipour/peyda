@@ -1,0 +1,61 @@
+name: Markdown quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  markdown:
+    name: Lint Markdown and local links
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: "**/*.md"
+
+      - name: Check local Markdown links
+        shell: python
+        run: |
+          import os
+          import re
+          import sys
+          import urllib.parse
+
+          missing = []
+          for dirpath, dirnames, filenames in os.walk("."):
+              dirnames[:] = [d for d in dirnames if d != ".git"]
+              for filename in filenames:
+                  if not filename.endswith(".md"):
+                      continue
+
+                  path = os.path.join(dirpath, filename)
+                  with open(path, encoding="utf-8") as handle:
+                      text = handle.read()
+
+                  for match in re.finditer(r"\[[^\]]+\]\(([^)]+)\)", text):
+                      raw_target = match.group(1).split("#", 1)[0]
+                      if (
+                          not raw_target
+                          or re.match(r"^[a-z][a-z0-9+.-]*:", raw_target)
+                          or raw_target.startswith("mailto:")
+                      ):
+                          continue
+
+                      target = urllib.parse.unquote(raw_target)
+                      resolved = os.path.normpath(os.path.join(dirpath, target))
+                      if not os.path.exists(resolved):
+                          missing.append(f"{path}: missing local link {raw_target}")
+
+          if missing:
+              print("\n".join(missing))
+              sys.exit(1)

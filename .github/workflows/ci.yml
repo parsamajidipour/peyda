@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  go-and-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Test Go packages
+        run: go test ./...
+
+      - name: Build CLI
+        run: go build -o bin/reconx ./cmd/reconx
+
+      - name: Check shell syntax
+        run: bash -n scripts/*.sh

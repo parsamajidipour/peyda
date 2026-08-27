@@ -1,0 +1,11 @@
+{
+  "target": "example.com",
+  "output_root": "runs",
+  "profile": "balanced",
+  "probe_rate": 50,
+  "crawl_rate": 20,
+  "api_rate": 20,
+  "excluded_file": "",
+  "skip_deps": false,
+  "write_jsonl": true
+}

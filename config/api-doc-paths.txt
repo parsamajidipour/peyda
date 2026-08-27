@@ -1,0 +1,17 @@
+# Common API documentation and schema paths.
+# Use only against confirmed in-scope hosts.
+/openapi.json
+/openapi.yaml
+/swagger.json
+/swagger.yaml
+/api-docs
+/api/docs
+/docs
+/swagger-ui/
+/swagger/index.html
+/redoc
+/graphql
+/graphiql
+/v1/openapi.json
+/v2/openapi.json
+/v3/openapi.json

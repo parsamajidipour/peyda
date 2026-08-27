@@ -1,0 +1,43 @@
+name: Content correction
+description: Report an accuracy, safety, or clarity issue in the recon playbooks.
+title: "[Content]: "
+labels:
+  - content
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for improving the playbooks. Do not include live secrets, private data, or evidence from unauthorized testing.
+  - type: input
+    id: affected-file
+    attributes:
+      label: Affected file
+      placeholder: playbooks/subdomain-enumeration.md
+    validations:
+      required: true
+  - type: textarea
+    id: concern
+    attributes:
+      label: Concern
+      description: What is inaccurate, unclear, unsafe, duplicated, or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-change
+    attributes:
+      label: Proposed change
+      description: Describe the correction or improvement.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Primary references
+      description: Link official docs, standards, research, or tool documentation when relevant.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I have not included live secrets, private data, or unauthorized exploit evidence.
+          required: true

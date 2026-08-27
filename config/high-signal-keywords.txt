@@ -1,0 +1,26 @@
+# Keywords used during manual review and shortlisting.
+# Keep this list small and explainable.
+admin
+login
+sign in
+api
+swagger
+openapi
+graphql
+graphiql
+redoc
+staging
+dev
+debug
+jenkins
+grafana
+kibana
+s3
+bucket
+blob
+cloudfront
+webhook
+billing
+export
+invite
+token
