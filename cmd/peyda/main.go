@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/parsamajidipour/reconx/internal/config"
-	"github.com/parsamajidipour/reconx/internal/deps"
-	"github.com/parsamajidipour/reconx/internal/reconrun"
+	"github.com/parsamajidipour/peyda/internal/config"
+	"github.com/parsamajidipour/peyda/internal/deps"
+	"github.com/parsamajidipour/peyda/internal/reconrun"
 )
 
 const version = "0.5.0"
@@ -31,7 +31,7 @@ func main() {
 	case "config":
 		err = configCommand(os.Args[2:])
 	case "version":
-		fmt.Printf("reconx %s\n", version)
+		fmt.Printf("peyda %s\n", version)
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -45,14 +45,14 @@ func main() {
 }
 
 func usage() {
-	fmt.Print(`reconx - scope-first reconnaissance CLI
+	fmt.Print(`peyda - scope-first reconnaissance CLI
 
 Usage:
-  reconx run -t example.com [--profile balanced] [--config reconx.json] [--no-jsonl]
-  reconx deps [--check | --update]
-  reconx init -t example.com [-d YYYY-MM-DD] [-o runs] [-e excluded.txt]
-  reconx config init [-o reconx.example.json]
-  reconx version
+  peyda run -t example.com [--profile balanced] [--config peyda.json] [--no-jsonl]
+  peyda deps [--check | --update]
+  peyda init -t example.com [-d YYYY-MM-DD] [-o runs] [-e excluded.txt]
+  peyda config init [-o peyda.example.json]
+  peyda version
 
 Commands:
   run      Prepare dependencies and run the complete recon pipeline
@@ -67,12 +67,12 @@ Profiles:
   deep      Balanced workflow with deeper crawl/probe limits
 
 Examples:
-  reconx deps --check
-  reconx deps
-  reconx run -t example.com --profile balanced -p 25
-  reconx run -t example.com --profile passive --no-jsonl
-  reconx config init -o reconx.json
-  reconx run --config reconx.json
+  peyda deps --check
+  peyda deps
+  peyda run -t example.com --profile balanced -p 25
+  peyda run -t example.com --profile passive --no-jsonl
+  peyda config init -o peyda.json
+  peyda run --config peyda.json
 
 Output:
   default: ./runs/example.com/YYYY-MM-DD/
@@ -152,11 +152,11 @@ func runCommand(args []string) error {
 
 func printBanner() {
 	fmt.Print(`
- ____  _____ ____ ___  _   ___  __
-|  _ \| ____/ ___/ _ \| \ | \ \/ /
-| |_) |  _|| |  | | | |  \| |\  /
-|  _ <| |__| |__| |_| | |\  |/  \
-|_| \_\_____\____\___/|_| \_/_/\_\
+ ____  _______   ______   _
+|  _ \| ____\ \ / /  _ \ / \
+| |_) |  _|  \ V /| | | / _ \
+|  __/| |___  | | | |_| / ___ \
+|_|   |_____| |_| |____/_/   \_\
 
         scope-first recon automation
         authorized targets only
@@ -216,11 +216,11 @@ func initCommand(args []string) error {
 
 func configCommand(args []string) error {
 	if len(args) == 0 || args[0] != "init" {
-		return errors.New("usage: reconx config init [-o reconx.example.json]")
+		return errors.New("usage: peyda config init [-o peyda.example.json]")
 	}
 
 	fs := flag.NewFlagSet("config init", flag.ContinueOnError)
-	output := fs.String("o", "reconx.example.json", "output config path")
+	output := fs.String("o", "peyda.example.json", "output config path")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}

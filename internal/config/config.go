@@ -71,8 +71,8 @@ type KatanaTool struct {
 func Load(path string) (Config, error) {
 	cfg := Default()
 	if path == "" {
-		if _, err := os.Stat(".reconx.json"); err == nil {
-			path = ".reconx.json"
+		if _, err := os.Stat(".peyda.json"); err == nil {
+			path = ".peyda.json"
 		}
 	}
 	if path == "" {

@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/parsamajidipour/reconx/internal/apidiscovery"
-	"github.com/parsamajidipour/reconx/internal/cloud"
-	"github.com/parsamajidipour/reconx/internal/config"
-	"github.com/parsamajidipour/reconx/internal/deps"
-	"github.com/parsamajidipour/reconx/internal/jsrecon"
-	"github.com/parsamajidipour/reconx/internal/report"
-	"github.com/parsamajidipour/reconx/internal/subdomain"
+	"github.com/parsamajidipour/peyda/internal/apidiscovery"
+	"github.com/parsamajidipour/peyda/internal/cloud"
+	"github.com/parsamajidipour/peyda/internal/config"
+	"github.com/parsamajidipour/peyda/internal/deps"
+	"github.com/parsamajidipour/peyda/internal/jsrecon"
+	"github.com/parsamajidipour/peyda/internal/report"
+	"github.com/parsamajidipour/peyda/internal/subdomain"
 )
 
 func Run(root string, cfg config.Config) error {
@@ -67,7 +67,7 @@ func Run(root string, cfg config.Config) error {
 			MaxDomainPages: cfg.MaxDomainPages,
 			Tools:          cfg.Tools,
 		}); err != nil {
-			fmt.Fprintf(os.Stdout, "[reconx] JS recon skipped or failed: %v\n", err)
+			fmt.Fprintf(os.Stdout, "[peyda] JS recon skipped or failed: %v\n", err)
 		}
 		if _, err := apidiscovery.Run(apidiscovery.Options{
 			Root:      root,
@@ -173,11 +173,11 @@ func absolutePath(path string) (string, error) {
 }
 
 func FindRepoRoot() (string, error) {
-	if home := os.Getenv("RECONX_HOME"); home != "" {
+	if home := os.Getenv("PEYDA_HOME"); home != "" {
 		if hasReconFiles(home) {
 			return home, nil
 		}
-		return "", fmt.Errorf("RECONX_HOME does not contain reconx files: %s", home)
+		return "", fmt.Errorf("PEYDA_HOME does not contain peyda files: %s", home)
 	}
 
 	cwd, err := os.Getwd()
@@ -195,11 +195,11 @@ func FindRepoRoot() (string, error) {
 		}
 		dir = parent
 	}
-	return "", errors.New("could not find repository root; run inside the repo or set RECONX_HOME")
+	return "", errors.New("could not find repository root; run inside the repo or set PEYDA_HOME")
 }
 
 func hasReconFiles(dir string) bool {
-	required := []string{"go.mod", "cmd/reconx/main.go"}
+	required := []string{"go.mod", "cmd/peyda/main.go"}
 	for _, rel := range required {
 		info, err := os.Stat(filepath.Join(dir, rel))
 		if err != nil || info.IsDir() {

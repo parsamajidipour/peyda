@@ -34,11 +34,11 @@ func TestLookPathPrefersGoBin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tool := filepath.Join(goBin, "reconx-test-tool")
+	tool := filepath.Join(goBin, "peyda-test-tool")
 	if err := os.WriteFile(tool, []byte("#!/usr/bin/env sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	path, err := LookPath("reconx-test-tool")
+	path, err := LookPath("peyda-test-tool")
 	if err != nil {
 		t.Fatal(err)
 	}

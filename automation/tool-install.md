@@ -2,14 +2,14 @@
 
 Install only what you need. These commands are examples for a Linux workstation with Go installed.
 
-## Install Reconx
+## Install Peyda
 
 Install the CLI from the repository into Go's binary directory:
 
 ```bash
-git clone https://github.com/parsamajidipour/reconx.git
-cd reconx
-go install ./cmd/reconx
+git clone https://github.com/parsamajidipour/peyda.git
+cd peyda
+go install ./cmd/peyda
 ```
 
 Make sure Go's binary directory is in `PATH`:
@@ -29,7 +29,7 @@ source ~/.zshrc
 Then install or refresh recon dependencies:
 
 ```bash
-reconx deps
+peyda deps
 ```
 
 This command:
@@ -42,13 +42,13 @@ This command:
 Force-update Go-based recon tools:
 
 ```bash
-reconx deps --update
+peyda deps --update
 ```
 
 Only check without installing:
 
 ```bash
-reconx deps --check
+peyda deps --check
 ```
 
 ## ProjectDiscovery Tools
@@ -87,7 +87,7 @@ gitleaks version
 
 ## Useful System Packages
 
-These are optional for manual workflows and local development. `reconx` core
+These are optional for manual workflows and local development. `peyda` core
 logic does not require them at runtime.
 
 ```bash
@@ -110,8 +110,8 @@ Add that line to your shell profile if needed.
 From a cloned repository:
 
 ```bash
-go build -o bin/reconx ./cmd/reconx
-bin/reconx deps --check
+go build -o bin/peyda ./cmd/peyda
+bin/peyda deps --check
 ```
 
 ## Notes

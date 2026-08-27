@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/parsamajidipour/reconx/internal/config"
-	"github.com/parsamajidipour/reconx/internal/deps"
+	"github.com/parsamajidipour/peyda/internal/config"
+	"github.com/parsamajidipour/peyda/internal/deps"
 )
 
 type Options struct {

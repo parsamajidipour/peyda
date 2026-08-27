@@ -4,7 +4,7 @@ These schemas keep recon output predictable across manual notes and scripts.
 
 ## `normalized/recon-events.jsonl`
 
-Produced by `reconx run`.
+Produced by `peyda run`.
 
 Each line is one JSON object:
 
@@ -22,7 +22,7 @@ Each line is one JSON object:
 
 ## `normalized/live-hosts.txt`
 
-Produced by `reconx run` in `balanced` and `deep` profiles.
+Produced by `peyda run` in `balanced` and `deep` profiles.
 
 ```text
 https://app.example.com [200] [Sign in] [React,nginx] [14320]
@@ -42,7 +42,7 @@ Produced by keyword filtering over live hosts. Treat as a review queue, not proo
 
 ## `normalized/asset-scores.tsv`
 
-Produced by `reconx run` in `balanced` and `deep` profiles.
+Produced by `peyda run` in `balanced` and `deep` profiles.
 
 | Column | Meaning |
 | --- | --- |
@@ -56,7 +56,7 @@ Produced by `reconx run` in `balanced` and `deep` profiles.
 
 ## `normalized/openapi-methods.tsv`
 
-Produced by `reconx run` in `balanced` and `deep` profiles.
+Produced by `peyda run` in `balanced` and `deep` profiles.
 
 | Column | Meaning |
 | --- | --- |
@@ -66,7 +66,7 @@ Produced by `reconx run` in `balanced` and `deep` profiles.
 
 ## `normalized/api-inventory.tsv`
 
-Produced by `reconx run` in `balanced` and `deep` profiles, then edited manually.
+Produced by `peyda run` in `balanced` and `deep` profiles, then edited manually.
 
 | Column | Meaning |
 | --- | --- |
@@ -82,7 +82,7 @@ Produced by `reconx run` in `balanced` and `deep` profiles, then edited manually
 
 ## `notes/js-leads.tsv`
 
-Produced by `reconx run` in `balanced` and `deep` profiles.
+Produced by `peyda run` in `balanced` and `deep` profiles.
 
 | Column | Meaning |
 | --- | --- |
@@ -94,12 +94,12 @@ Produced by `reconx run` in `balanced` and `deep` profiles.
 
 ## `normalized/source-map-candidates.txt`
 
-Produced by `reconx run` in `balanced` and `deep` profiles.
+Produced by `peyda run` in `balanced` and `deep` profiles.
 Treat source maps as review candidates and only inspect them where program policy allows it.
 
 ## `notes/cloud-candidates.tsv`
 
-Produced by `reconx run` in `balanced` and `deep` profiles.
+Produced by `peyda run` in `balanced` and `deep` profiles.
 
 | Column | Meaning |
 | --- | --- |
@@ -112,11 +112,11 @@ Produced by `reconx run` in `balanced` and `deep` profiles.
 
 ## `notes/recon-report.txt`
 
-Produced by `reconx run`. This is the primary human-readable report for a run.
+Produced by `peyda run`. This is the primary human-readable report for a run.
 It includes run settings, counts, discovered subdomains, resolved hosts, live
 HTTP/S services, JavaScript files, JavaScript route leads, API probes, API
 inventory rows, cloud candidates, and next actions.
 
 ## `notes/recon-summary.md`
 
-Produced by `reconx run`. Use it as an internal run summary and handoff aid, not as a vulnerability report.
+Produced by `peyda run`. Use it as an internal run summary and handoff aid, not as a vulnerability report.

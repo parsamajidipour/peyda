@@ -1,25 +1,25 @@
 # CLI Design
 
-`reconx` is moving from a playbook repository into a scope-first reconnaissance CLI.
+`peyda` is moving from a playbook repository into a scope-first reconnaissance CLI.
 The repository still keeps the playbooks because they explain how to review and validate
 the data produced by the tool.
 
 ## Current CLI
 
 ```bash
-go install ./cmd/reconx
-reconx run -t example.com --profile balanced -p 50
+go install ./cmd/peyda
+peyda run -t example.com --profile balanced -p 50
 ```
 
 Commands:
 
 | Command | Purpose |
 | --- | --- |
-| `reconx run` | Runs the complete recon pipeline for one scoped root domain |
-| `reconx deps` | Checks, installs, or updates required recon dependencies |
-| `reconx init` | Creates a structured run folder |
-| `reconx config init` | Writes an example JSON config |
-| `reconx version` | Prints the CLI version |
+| `peyda run` | Runs the complete recon pipeline for one scoped root domain |
+| `peyda deps` | Checks, installs, or updates required recon dependencies |
+| `peyda init` | Creates a structured run folder |
+| `peyda config init` | Writes an example JSON config |
+| `peyda version` | Prints the CLI version |
 
 ## Design Goals
 

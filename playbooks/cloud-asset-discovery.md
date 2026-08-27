@@ -21,10 +21,10 @@ Policy: cloud testing and secrets validation rules
 From the repository root:
 
 ```bash
-reconx run -t example.com --profile balanced
+peyda run -t example.com --profile balanced
 ```
 
-`reconx` extracts cloud provider hints and secret-looking strings natively from
+`peyda` extracts cloud provider hints and secret-looking strings natively from
 the run folder, redacts secret-looking values in generated notes, and writes the
 candidate table without validating credentials or accessing private data.
 

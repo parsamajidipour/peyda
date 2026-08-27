@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/parsamajidipour/reconx/internal/config"
+	"github.com/parsamajidipour/peyda/internal/config"
 )
 
 func TestInitCreatesRunFolder(t *testing.T) {

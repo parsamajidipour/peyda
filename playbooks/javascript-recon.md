@@ -26,10 +26,10 @@ Extract client-side routes, API paths, feature flags, source maps, build metadat
 Fast path from the repository root:
 
 ```bash
-reconx run -t example.com --profile balanced
+peyda run -t example.com --profile balanced
 ```
 
-`reconx` runs `katana` as the crawl engine, then handles JavaScript URL extraction,
+`peyda` runs `katana` as the crawl engine, then handles JavaScript URL extraction,
 relative URL resolution, bundle downloads, route extraction, source-map candidates,
 redaction of secret-looking strings, and `notes/js-leads.tsv` generation natively.
 

@@ -1,3 +1,3 @@
-module github.com/parsamajidipour/reconx
+module github.com/parsamajidipour/peyda
 
 go 1.22

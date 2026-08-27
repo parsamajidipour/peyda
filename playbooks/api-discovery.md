@@ -21,10 +21,10 @@ Output: normalized/api-inventory.tsv
 Fast path from the repository root:
 
 ```bash
-reconx run -t example.com --profile balanced
+peyda run -t example.com --profile balanced
 ```
 
-`reconx` builds API host candidates, probes common documentation/schema paths,
+`peyda` builds API host candidates, probes common documentation/schema paths,
 downloads reachable JSON schemas, extracts OpenAPI method/path pairs, and creates
 `normalized/api-inventory.tsv`.
 

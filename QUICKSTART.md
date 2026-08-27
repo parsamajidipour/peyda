@@ -5,9 +5,9 @@ Replace `example.com` with a domain that is explicitly in scope.
 ## 1. Install
 
 ```bash
-git clone https://github.com/parsamajidipour/reconx.git
-cd reconx
-go install ./cmd/reconx
+git clone https://github.com/parsamajidipour/peyda.git
+cd peyda
+go install ./cmd/peyda
 ```
 
 Add Go's binary directory to your `PATH` if needed:
@@ -27,8 +27,8 @@ source ~/.zshrc
 Verify:
 
 ```bash
-which reconx
-reconx help
+which peyda
+peyda help
 ```
 
 ## 2. Prepare Dependencies
@@ -36,16 +36,16 @@ reconx help
 Check only:
 
 ```bash
-reconx deps --check
+peyda deps --check
 ```
 
 Install or update missing tools:
 
 ```bash
-reconx deps
+peyda deps
 ```
 
-`reconx` prefers `$HOME/go/bin` first in `PATH` so ProjectDiscovery `httpx`
+`peyda` prefers `$HOME/go/bin` first in `PATH` so ProjectDiscovery `httpx`
 wins over the Python `httpx` CLI when both are installed.
 
 ## 3. Run Recon
@@ -53,34 +53,34 @@ wins over the Python `httpx` CLI when both are installed.
 Balanced profile:
 
 ```bash
-reconx run -t example.com --profile balanced -p 50
+peyda run -t example.com --profile balanced -p 50
 ```
 
 Choose an output directory:
 
 ```bash
-reconx run -t example.com --profile balanced -o ~/recon-results
+peyda run -t example.com --profile balanced -o ~/recon-results
 ```
 
-Without `-o`, output is written to `./runs` under the directory where `reconx` was executed.
+Without `-o`, output is written to `./runs` under the directory where `peyda` was executed.
 
 Passive profile:
 
 ```bash
-reconx run -t example.com --profile passive
+peyda run -t example.com --profile passive
 ```
 
 Deep profile:
 
 ```bash
-reconx run -t example.com --profile deep
+peyda run -t example.com --profile deep
 ```
 
 ## 4. Use a Config File
 
 ```bash
-reconx config init
-reconx run --config reconx.example.json
+peyda config init
+peyda run --config peyda.example.json
 ```
 
 Config fields:
@@ -204,8 +204,8 @@ column -t -s $'\t' "$latest_run/normalized/asset-scores.tsv" | less -S
 
 | Problem | Likely cause | Fix |
 | --- | --- | --- |
-| Python `httpx` runs instead of ProjectDiscovery `httpx` | PATH collision | Run `reconx deps` |
+| Python `httpx` runs instead of ProjectDiscovery `httpx` | PATH collision | Run `peyda deps` |
 | Very few subdomains | No provider API keys | Add provider config and rerun |
 | Many identical live pages | CDN, wildcard, or soft-404 | Review title, length, redirects, screenshots |
-| JS recon is skipped | `katana` missing or failed | Run `reconx deps --update` |
+| JS recon is skipped | `katana` missing or failed | Run `peyda deps --update` |
 | Lead looks sensitive | Scope or data risk unclear | Stop and confirm authorization |

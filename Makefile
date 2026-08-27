@@ -4,7 +4,7 @@ SHELL := /bin/bash
 .PHONY: build test lint check
 
 build:
-	go build -o bin/reconx ./cmd/reconx
+	go build -o bin/peyda ./cmd/peyda
 
 test:
 	go test ./...

@@ -21,10 +21,10 @@ Run directory: runs/example.com/YYYY-MM-DD/
 Fast path from the repository root:
 
 ```bash
-reconx run -t example.com --profile balanced -p 50
+peyda run -t example.com --profile balanced -p 50
 ```
 
-`reconx` handles normalization, exclusion filtering, DNS/HTTP orchestration, and
+`peyda` handles normalization, exclusion filtering, DNS/HTTP orchestration, and
 asset scoring natively. ProjectDiscovery tools are used as engines, while the
 review queue is produced by `normalized/asset-scores.tsv`.
 

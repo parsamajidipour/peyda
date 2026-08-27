@@ -30,7 +30,7 @@ func RunCommand(root string, out io.Writer, args ...string) error {
 	cmd.Stderr = out
 	cmd.Stdin = os.Stdin
 	cmd.Env = WithGoBinFirst(os.Environ())
-	fmt.Fprintf(out, "[reconx] %s\n", strings.Join(args, " "))
+	fmt.Fprintf(out, "[peyda] %s\n", strings.Join(args, " "))
 	return cmd.Run()
 }
 

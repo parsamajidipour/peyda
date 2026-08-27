@@ -22,7 +22,7 @@ jobs:
         run: go test ./...
 
       - name: Build CLI
-        run: go build -o bin/reconx ./cmd/reconx
+        run: go build -o bin/peyda ./cmd/peyda
 
       - name: Check shell syntax
         run: if compgen -G "scripts/*.sh" > /dev/null; then bash -n scripts/*.sh; fi

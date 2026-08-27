@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/parsamajidipour/reconx/internal/config"
+	"github.com/parsamajidipour/peyda/internal/config"
 )
 
 type Event struct {
@@ -130,7 +130,7 @@ func WriteText(runDir string, cfg config.Config) error {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "RECONX REPORT\n")
+	fmt.Fprintf(&b, "PEYDA REPORT\n")
 	fmt.Fprintf(&b, "=============\n\n")
 	fmt.Fprintf(&b, "Generated UTC : %s\n", time.Now().UTC().Format(time.RFC3339))
 	fmt.Fprintf(&b, "Target        : %s\n", cfg.Target)

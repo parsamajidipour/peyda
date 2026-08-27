@@ -24,13 +24,13 @@ Automation:
 ## Run Setup
 
 ```bash
-reconx run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
+peyda run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
 ```
 
 Or run the first two stages manually:
 
 ```bash
-reconx run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
+peyda run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
 ```
 
 ## Sample Live Hosts

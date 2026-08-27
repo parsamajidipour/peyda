@@ -1,12 +1,12 @@
-# reconx
+# peyda
 
 > A scope-first reconnaissance CLI for authorized bug bounty and security assessment workflows.
 
-[![CI](https://github.com/parsamajidipour/reconx/actions/workflows/ci.yml/badge.svg)](https://github.com/parsamajidipour/reconx/actions/workflows/ci.yml)
-[![Markdown quality](https://github.com/parsamajidipour/reconx/actions/workflows/markdown.yml/badge.svg)](https://github.com/parsamajidipour/reconx/actions/workflows/markdown.yml)
+[![CI](https://github.com/parsamajidipour/peyda/actions/workflows/ci.yml/badge.svg)](https://github.com/parsamajidipour/peyda/actions/workflows/ci.yml)
+[![Markdown quality](https://github.com/parsamajidipour/peyda/actions/workflows/markdown.yml/badge.svg)](https://github.com/parsamajidipour/peyda/actions/workflows/markdown.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`reconx` turns messy reconnaissance into one repeatable workflow: subdomain discovery, DNS resolution, live HTTP probing, JavaScript crawling, route extraction, API discovery, cloud hints, JSONL events, and human-readable reports.
+`peyda` turns messy reconnaissance into one repeatable workflow: subdomain discovery, DNS resolution, live HTTP probing, JavaScript crawling, route extraction, API discovery, cloud hints, JSONL events, and human-readable reports.
 
 It is designed for authorized targets. The output is a review queue, not a vulnerability report.
 
@@ -25,7 +25,7 @@ target domain
   -> text report, Markdown summary, JSONL events
 ```
 
-`reconx` uses proven recon tools where they are strongest, then normalizes and explains the output with native Go logic.
+`peyda` uses proven recon tools where they are strongest, then normalizes and explains the output with native Go logic.
 
 | Stage | Tooling | Output |
 | --- | --- | --- |
@@ -43,11 +43,11 @@ target domain
 When a recon run starts, the CLI prints a small banner:
 
 ```text
- ____  _____ ____ ___  _   ___  __
-|  _ \| ____/ ___/ _ \| \ | \ \/ /
-| |_) |  _|| |  | | | |  \| |\  /
-|  _ <| |__| |__| |_| | |\  |/  \
-|_| \_\_____\____\___/|_| \_/_/\_\
+ ____  _______   ______   _
+|  _ \| ____\ \ / /  _ \ / \
+| |_) |  _|  \ V /| | | / _ \
+|  __/| |___  | | | |_| / ___ \
+|_|   |_____| |_| |____/_/   \_\
 
         scope-first recon automation
         authorized targets only
@@ -60,12 +60,12 @@ No version is printed in the banner for now.
 
 ## Install
 
-Install `reconx` from the repository:
+Install `peyda` from the repository:
 
 ```bash
-git clone https://github.com/parsamajidipour/reconx.git
-cd reconx
-go install ./cmd/reconx
+git clone https://github.com/parsamajidipour/peyda.git
+cd peyda
+go install ./cmd/peyda
 ```
 
 Make sure Go's binary directory is in your `PATH`:
@@ -85,62 +85,62 @@ source ~/.zshrc
 Verify the install:
 
 ```bash
-which reconx
-reconx help
+which peyda
+peyda help
 ```
 
 You can also install directly from GitHub after the repository is public and pushed:
 
 ```bash
-go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+go install github.com/parsamajidipour/peyda/cmd/peyda@latest
 ```
 
 Check dependencies:
 
 ```bash
-reconx deps --check
+peyda deps --check
 ```
 
 Install or refresh missing ProjectDiscovery tools:
 
 ```bash
-reconx deps
+peyda deps
 ```
 
-`reconx` prefers `$HOME/go/bin` first in `PATH`, so ProjectDiscovery `httpx` wins over the Python package named `httpx` when both exist.
+`peyda` prefers `$HOME/go/bin` first in `PATH`, so ProjectDiscovery `httpx` wins over the Python package named `httpx` when both exist.
 
 ## Quick Start
 
 Run a normal balanced recon:
 
 ```bash
-reconx run -t example.com --profile balanced
+peyda run -t example.com --profile balanced
 ```
 
 Run with a lower HTTP probe rate:
 
 ```bash
-reconx run -t example.com --profile balanced -p 25
+peyda run -t example.com --profile balanced -p 25
 ```
 
 Write output to a specific directory:
 
 ```bash
-reconx run -t example.com --profile balanced -o ~/recon-results
+peyda run -t example.com --profile balanced -o ~/recon-results
 ```
 
-If `-o` is not provided, `reconx` writes to `./runs` under the directory where the command was executed.
+If `-o` is not provided, `peyda` writes to `./runs` under the directory where the command was executed.
 
 Run a passive-only pass:
 
 ```bash
-reconx run -t example.com --profile passive
+peyda run -t example.com --profile passive
 ```
 
 Run a deeper pass:
 
 ```bash
-reconx run -t example.com --profile deep
+peyda run -t example.com --profile deep
 ```
 
 Open the final text report:
@@ -152,7 +152,7 @@ less "$latest_run/notes/recon-report.txt"
 
 ## Example Run Output
 
-At the end of a run, `reconx` prints the main artifacts:
+At the end of a run, `peyda` prints the main artifacts:
 
 ```text
 [INF] Recon complete
@@ -236,7 +236,7 @@ Deep defaults:
 
 ## Configuration Model
 
-`reconx` has three configuration layers:
+`peyda` has three configuration layers:
 
 | Layer | Use it for | Example |
 | --- | --- | --- |
@@ -260,7 +260,7 @@ Tool settings are optional. If you only override one tool field, the remaining d
 ### 1. Create a config file
 
 ```bash
-reconx config init -o reconx.json
+peyda config init -o peyda.json
 ```
 
 This creates a runnable config file.
@@ -331,7 +331,7 @@ Meaning:
 
 ### 5. Tune tool behavior
 
-The `tools` section controls how `reconx` calls `subfinder`, `dnsx`, `httpx`, and `katana`.
+The `tools` section controls how `peyda` calls `subfinder`, `dnsx`, `httpx`, and `katana`.
 
 ```json
 {
@@ -370,13 +370,13 @@ The `tools` section controls how `reconx` calls `subfinder`, `dnsx`, `httpx`, an
 ### 6. Run with the config
 
 ```bash
-reconx run --config reconx.json
+peyda run --config peyda.json
 ```
 
 You can still override common options from the CLI:
 
 ```bash
-reconx run --config reconx.json -p 15 --crawl-duration 30s
+peyda run --config peyda.json -p 15 --crawl-duration 30s
 ```
 
 ## Tool Config Reference
@@ -651,18 +651,18 @@ jq -r 'select(.type=="js_route") | .value' "$latest_run/normalized/recon-events.
 
 | Problem | Likely cause | Fix |
 | --- | --- | --- |
-| `httpx` looks like the Python CLI | PATH collision | Run `reconx deps`; `$HOME/go/bin` is preferred |
-| `crt.sh` returns `429` or `502` | External rate limiting or service issue | `reconx` continues with other sources |
+| `httpx` looks like the Python CLI | PATH collision | Run `peyda deps`; `$HOME/go/bin` is preferred |
+| `crt.sh` returns `429` or `502` | External rate limiting or service issue | `peyda` continues with other sources |
 | Very few subdomains | No provider API keys or small public footprint | Add provider config for ProjectDiscovery tools and rerun |
 | Too much crawl output | Crawl caps too high | Lower `crawl_duration`, `crawl_depth`, or `max_domain_pages` |
-| JS recon is skipped | `katana` missing or failed | Run `reconx deps --update` |
+| JS recon is skipped | `katana` missing or failed | Run `peyda deps --update` |
 | Report has many low-value assets | CDN or soft-404 behavior | Start with `notes/interesting-hosts.txt` and `asset-scores.tsv` |
 | Lead looks sensitive | Scope or data risk unclear | Stop and confirm authorization before validation |
 
 ## Project Layout
 
 ```text
-cmd/reconx/         CLI entry point
+cmd/peyda/         CLI entry point
 internal/config/    JSON config, profiles, and tool defaults
 internal/deps/      Dependency orchestration
 internal/reconrun/  Native run setup and profile orchestration

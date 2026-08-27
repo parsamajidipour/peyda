@@ -46,7 +46,7 @@ func TestApplyProfileDefaults(t *testing.T) {
 }
 
 func TestLoadMergesToolDefaultsWithOverrides(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "reconx.json")
+	path := filepath.Join(t.TempDir(), "peyda.json")
 	body := `{
   "target": "example.com",
   "tools": {
