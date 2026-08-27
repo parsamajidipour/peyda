@@ -14,26 +14,36 @@ It is designed for authorized targets. The output is a review queue, not a vulne
 
 ```text
 target domain
+  -> WHOIS registration lookup
+  -> DNS baseline records
   -> passive subdomain discovery
-  -> normalization and exclusions
-  -> DNS resolution
+  -> subdomain resolution
   -> live HTTP/S probing
+  -> port discovery and service enrichment
+  -> historical URL collection
+  -> crawling
+  -> parameter discovery
+  -> JavaScript endpoint extraction
   -> asset scoring
-  -> JavaScript crawling and route extraction
   -> API documentation/schema probing
   -> cloud and secret-looking lead extraction
-  -> text report, Markdown summary, JSONL events
+  -> human output, JSON/JSONL, text report
 ```
 
 `peyda` uses proven recon tools where they are strongest, then normalizes and explains the output with native Go logic.
 
 | Stage | Tooling | Output |
 | --- | --- | --- |
+| WHOIS | `whois` | `normalized/whois.tsv` |
+| DNS baseline | `dig` | `normalized/dns-records.tsv` |
 | Subdomain discovery | `subfinder` + `crt.sh` | `normalized/subdomains.txt` |
 | DNS resolution | `dnsx` | `normalized/resolved-hosts.txt` |
 | HTTP probing | `httpx` | `normalized/live-hosts.txt` |
+| Port discovery | `naabu` + `nmap` | `normalized/open-ports.tsv` |
+| Historical URLs | `gau` | `normalized/urls.txt` |
 | Asset scoring | Native Go | `normalized/asset-scores.tsv` |
-| JavaScript recon | `katana` + native Go parsing | `normalized/js-files.txt`, `notes/js-leads.tsv` |
+| JavaScript recon | `katana` + `xnLinkFinder` + native Go parsing | `normalized/js-files.txt`, `normalized/js-endpoints.txt`, `notes/js-leads.tsv` |
+| Parameter discovery | Native URL parsing + optional `Arjun` | `normalized/parameters.tsv` |
 | API discovery | `httpx` + native OpenAPI parsing | `normalized/api-docs-probed.txt`, `normalized/api-inventory.tsv` |
 | Cloud hints | Native Go | `notes/cloud-candidates.tsv` |
 | Reporting | Native Go | `notes/recon-report.txt`, `notes/recon-summary.md`, `normalized/recon-events.jsonl` |
@@ -126,10 +136,30 @@ peyda run example.com --profile balanced -p 25
 Write output to a specific directory:
 
 ```bash
-peyda run example.com --profile balanced -o ~/recon-results
+peyda run example.com --profile balanced --output-dir ~/recon-results
 ```
 
-If `-o` is not provided, `peyda` writes to `./runs` under the directory where the command was executed.
+If `--output-dir` is not provided, `peyda` writes artifacts to `./runs` under the directory where the command was executed.
+
+Save the final CLI output to a file:
+
+```bash
+peyda example.com -o result.txt
+```
+
+Machine-readable output:
+
+```bash
+peyda example.com -json
+peyda example.com -jsonl
+peyda example.com -jsonl -o result.jsonl
+```
+
+Quiet result-only output:
+
+```bash
+peyda example.com -silent
+```
 
 For compatibility, `-t` still works:
 
@@ -158,14 +188,39 @@ less "$latest_run/notes/recon-report.txt"
 
 ## Example Run Output
 
-At the end of a run, `peyda` prints the main artifacts:
+By default, `peyda` prints human-readable result lines:
 
 ```text
-[INF] Recon complete
-[INF] Output directory: /path/to/current/directory/runs/example.com/YYYY-MM-DD
-[INF] Text report: /path/to/current/directory/runs/example.com/YYYY-MM-DD/notes/recon-report.txt
-[INF] Markdown summary: /path/to/current/directory/runs/example.com/YYYY-MM-DD/notes/recon-summary.md
-[INF] JSONL events: /path/to/current/directory/runs/example.com/YYYY-MM-DD/normalized/recon-events.jsonl
+[WHOIS] [registrar] NameCheap
+[DNS] [A] example.com -> 1.2.3.4
+[DNS] [MX] example.com -> mail.example.com
+
+[SUB] api.example.com
+[SUB] admin.example.com
+
+[HTTP] [200] [nginx] https://api.example.com
+[HTTP] [403] [cloudflare] https://admin.example.com
+
+[PORT] [443/https] api.example.com
+[PORT] [8080/http] api.example.com
+
+[URL] https://example.com/login
+[PARAM] [redirect] https://example.com/login?redirect=
+[JS] https://example.com/assets/app.js
+[JS-ENDPOINT] /api/v1/users
+
+----------------------------------------
+Scan completed in 47.2s
+
+Subdomains       31
+Live Hosts       18
+IPs              7
+Open Ports       24
+URLs             683
+Parameters       42
+JavaScript       27
+JS Endpoints     91
+----------------------------------------
 ```
 
 Start with `notes/recon-report.txt`. It is the main human-readable output.
@@ -187,22 +242,33 @@ runs/example.com/YYYY-MM-DD/
 │   ├── subdomains.txt
 │   ├── resolved-hosts.txt
 │   ├── live-hosts.txt
+│   ├── open-ports.tsv
+│   ├── urls.txt
+│   ├── parameters.tsv
 │   ├── asset-scores.tsv
 │   ├── js-files.txt
+│   ├── js-endpoints.txt
 │   ├── js-route-leads.txt
 │   ├── source-map-candidates.txt
 │   └── api-inventory.tsv
 ├── raw/
+│   ├── whois.txt
+│   ├── dig-a.txt
 │   ├── subfinder.txt
 │   ├── crtsh.txt
+│   ├── naabu.txt
+│   ├── gau-urls.txt
 │   ├── katana-urls.txt
 │   ├── katana-urls.all.txt
+│   ├── arjun.json
+│   ├── xnlinkfinder.txt
+│   ├── nmap/
 │   ├── js/
 │   └── api/
 └── screenshots/
 ```
 
-This tree is created under `./runs` by default. If you pass `-o ~/recon-results`, the same tree is created under `~/recon-results`.
+This tree is created under `./runs` by default. If you pass `--output-dir ~/recon-results`, the same tree is created under `~/recon-results`.
 
 ## Profiles
 
@@ -223,7 +289,8 @@ Balanced defaults:
   "crawl_depth": 1,
   "crawl_duration": "45s",
   "max_domain_pages": 75,
-  "api_rate": 20
+  "api_rate": 20,
+  "port_rate": 50
 }
 ```
 
@@ -236,7 +303,8 @@ Deep defaults:
   "crawl_depth": 5,
   "crawl_duration": "30m",
   "max_domain_pages": 5000,
-  "api_rate": 10
+  "api_rate": 10,
+  "port_rate": 25
 }
 ```
 
@@ -322,7 +390,8 @@ Example: keep the run polite and bounded.
   "crawl_depth": 1,
   "crawl_duration": "45s",
   "max_domain_pages": 75,
-  "api_rate": 20
+  "api_rate": 20,
+  "port_rate": 50
 }
 ```
 
@@ -336,10 +405,14 @@ Meaning:
 | `crawl_duration` | Maximum crawl time, such as `30s`, `2m`, `5m`, or `30m` |
 | `max_domain_pages` | Maximum pages Katana should crawl per domain |
 | `api_rate` | Rate limit for API docs/schema probing |
+| `port_rate` | Rate limit for Naabu port probing |
 
 ### 5. Tune tool behavior
 
-The `tools` section controls how `peyda` calls `subfinder`, `dnsx`, `httpx`, and `katana`.
+The `tools` section controls how `peyda` calls the main ProjectDiscovery stages.
+System and optional helpers such as `whois`, `dig`, `naabu`, `nmap`, `gau`,
+`Arjun`, and `xnLinkFinder` are detected automatically and skipped gracefully if
+they are not installed.
 
 ```json
 {

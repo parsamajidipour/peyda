@@ -59,10 +59,23 @@ peyda run example.com --profile balanced -p 50
 Choose an output directory:
 
 ```bash
-peyda run example.com --profile balanced -o ~/recon-results
+peyda run example.com --profile balanced --output-dir ~/recon-results
 ```
 
-Without `-o`, output is written to `./runs` under the directory where `peyda` was executed.
+Without `--output-dir`, artifacts are written to `./runs` under the directory where `peyda` was executed.
+
+Save the CLI output:
+
+```bash
+peyda example.com -o result.txt
+```
+
+Machine-readable output:
+
+```bash
+peyda example.com -json
+peyda example.com -jsonl
+```
 
 The legacy `-t` form still works, but the positional target is preferred.
 
@@ -98,6 +111,7 @@ Config fields:
   "crawl_duration": "45s",
   "max_domain_pages": 75,
   "api_rate": 20,
+  "port_rate": 50,
   "excluded_file": "",
   "skip_deps": false,
   "write_jsonl": true,

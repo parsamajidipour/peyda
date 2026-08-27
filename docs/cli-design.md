@@ -8,7 +8,9 @@ the data produced by the tool.
 
 ```bash
 go install ./cmd/peyda
-peyda run example.com --profile balanced -p 50
+peyda example.com --profile balanced -p 50
+peyda example.com -silent
+peyda example.com -jsonl -o results.jsonl
 ```
 
 Commands:
@@ -25,6 +27,7 @@ Commands:
 
 - Produce normalized files that can be reviewed, diffed, and handed off.
 - Produce JSONL events for automation and text/Markdown reports for humans.
+- Produce default `[TYPE] [metadata] value` output for terminal review.
 - Score live assets so the manual review queue is explainable.
 - Keep subdomain normalization, exclusion filtering, and asset scoring native.
 - Keep API candidate selection, OpenAPI parsing, and inventory generation native.
@@ -35,6 +38,14 @@ Commands:
 - Detect common tool collisions, especially Python `httpx` versus ProjectDiscovery `httpx`.
 - Keep every active probing step tied to explicit scope and rate limits.
 - Keep common run controls as CLI flags and tool-specific behavior in JSON config.
+
+## Stage Order
+
+```text
+whois -> dig -> subfinder -> dnsx -> httpx -> naabu -> nmap -> gau -> katana -> Arjun -> xnLinkFinder
+```
+
+Missing optional tools are skipped gracefully; normalized outputs are still created.
 
 ## Profiles
 

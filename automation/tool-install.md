@@ -35,9 +35,9 @@ peyda deps
 This command:
 
 - prefers `$HOME/go/bin` first in `PATH`
-- installs or refreshes ProjectDiscovery tools with `go install @latest`
+- installs or refreshes required Go-based recon tools with `go install @latest`
 - detects the common Python `httpx` / ProjectDiscovery `httpx` name collision
-- reports optional helper tools such as `rg` without blocking the recon run
+- reports optional helper tools such as `whois`, `dig`, `nmap`, `Arjun`, and `xnLinkFinder` without blocking the recon run
 
 Force-update Go-based recon tools:
 
@@ -57,8 +57,9 @@ peyda deps --check
 go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
 go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
 go install github.com/projectdiscovery/katana/cmd/katana@latest
-go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+go install github.com/lc/gau/v2/cmd/gau@latest
 ```
 
 Confirm:
@@ -67,8 +68,18 @@ Confirm:
 subfinder -version
 dnsx -version
 httpx -version
+naabu -version
 katana -version
-nuclei -version
+gau --version
+```
+
+## Optional Python Tools
+
+These improve parameter and JavaScript endpoint discovery when available.
+
+```bash
+pipx install arjun
+pipx install xnLinkFinder
 ```
 
 ## Optional Screenshot Tool
@@ -92,7 +103,7 @@ logic does not require them at runtime.
 
 ```bash
 sudo apt update
-sudo apt install -y jq ripgrep curl git
+sudo apt install -y jq ripgrep curl git whois dnsutils nmap
 ```
 
 ## Path Setup

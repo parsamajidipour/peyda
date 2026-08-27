@@ -2,12 +2,16 @@ package report
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +24,232 @@ type Event struct {
 	Source    string            `json:"source"`
 	Timestamp string            `json:"timestamp"`
 	Fields    map[string]string `json:"fields,omitempty"`
+}
+
+type OutputRecord struct {
+	Type       string   `json:"type"`
+	Host       string   `json:"host,omitempty"`
+	URL        string   `json:"url,omitempty"`
+	Status     int      `json:"status,omitempty"`
+	Tech       []string `json:"tech,omitempty"`
+	RecordType string   `json:"record_type,omitempty"`
+	Value      string   `json:"value,omitempty"`
+	Name       string   `json:"name,omitempty"`
+	Port       int      `json:"port,omitempty"`
+	Service    string   `json:"service,omitempty"`
+	Source     string   `json:"source,omitempty"`
+	Endpoint   string   `json:"endpoint,omitempty"`
+}
+
+type OutputSummary struct {
+	Subdomains  int     `json:"subdomains"`
+	LiveHosts   int     `json:"live_hosts"`
+	IPs         int     `json:"ips"`
+	OpenPorts   int     `json:"open_ports"`
+	URLs        int     `json:"urls"`
+	Parameters  int     `json:"parameters"`
+	JavaScript  int     `json:"javascript"`
+	JSEndpoints int     `json:"js_endpoints"`
+	DurationSec float64 `json:"duration_sec"`
+}
+
+func WriteCLIOutput(out io.Writer, runDir string, cfg config.Config, duration time.Duration) error {
+	if out == nil {
+		out = io.Discard
+	}
+	content, err := RenderCLIOutput(runDir, cfg, duration)
+	if err != nil {
+		return err
+	}
+	if cfg.OutputFile != "" {
+		if err := os.WriteFile(cfg.OutputFile, []byte(content), 0o644); err != nil {
+			return err
+		}
+	}
+	_, err = io.WriteString(out, content)
+	return err
+}
+
+func RenderCLIOutput(runDir string, cfg config.Config, duration time.Duration) (string, error) {
+	records := CollectOutputRecords(runDir)
+	summary := BuildOutputSummary(runDir, duration)
+	switch cfg.OutputFormat {
+	case "json":
+		body := map[string]any{
+			"target":    cfg.Target,
+			"profile":   cfg.Profile,
+			"run_dir":   runDir,
+			"summary":   summary,
+			"results":   records,
+			"generated": time.Now().UTC().Format(time.RFC3339),
+		}
+		data, err := json.MarshalIndent(body, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		return string(data) + "\n", nil
+	case "jsonl":
+		var b bytes.Buffer
+		enc := json.NewEncoder(&b)
+		for _, record := range records {
+			if err := enc.Encode(record); err != nil {
+				return "", err
+			}
+		}
+		return b.String(), nil
+	default:
+		return renderHuman(records, summary, cfg.Silent), nil
+	}
+}
+
+func CollectOutputRecords(runDir string) []OutputRecord {
+	var records []OutputRecord
+
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/whois.tsv")) {
+		if row["key"] != "" && row["value"] != "" {
+			records = append(records, OutputRecord{Type: "whois", Name: row["key"], Value: row["value"]})
+		}
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/dns-records.tsv")) {
+		if row["type"] != "" && row["value"] != "" {
+			records = append(records, OutputRecord{Type: "dns", Host: row["name"], RecordType: row["type"], Value: row["value"]})
+		}
+	}
+	for _, host := range readLines(filepath.Join(runDir, "normalized/subdomains.txt")) {
+		records = append(records, OutputRecord{Type: "subdomain", Host: host})
+	}
+	for _, line := range readLines(filepath.Join(runDir, "normalized/live-hosts.txt")) {
+		fields := parseHTTPXLine(line)
+		if fields["url"] == "" {
+			continue
+		}
+		status, _ := strconv.Atoi(fields["status"])
+		records = append(records, OutputRecord{
+			Type:   "http",
+			Host:   hostFromURL(fields["url"]),
+			URL:    fields["url"],
+			Status: status,
+			Tech:   splitTech(fields["technology"]),
+		})
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/open-ports.tsv")) {
+		port, _ := strconv.Atoi(row["port"])
+		if row["host"] != "" && port > 0 {
+			records = append(records, OutputRecord{Type: "port", Host: row["host"], Port: port, Service: row["service"], Source: row["source"]})
+		}
+	}
+	for _, item := range readLines(filepath.Join(runDir, "normalized/urls.txt")) {
+		records = append(records, OutputRecord{Type: "url", URL: item})
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/parameters.tsv")) {
+		if row["name"] != "" {
+			records = append(records, OutputRecord{Type: "parameter", Name: row["name"], URL: row["url"], Source: row["source"]})
+		}
+	}
+	for _, item := range readLines(filepath.Join(runDir, "normalized/js-files.txt")) {
+		records = append(records, OutputRecord{Type: "javascript", URL: item})
+	}
+	for _, item := range readLines(filepath.Join(runDir, "normalized/js-endpoints.txt")) {
+		records = append(records, OutputRecord{Type: "js_endpoint", Endpoint: item})
+	}
+	return records
+}
+
+func BuildOutputSummary(runDir string, duration time.Duration) OutputSummary {
+	return OutputSummary{
+		Subdomains:  countLines(filepath.Join(runDir, "normalized/subdomains.txt")),
+		LiveHosts:   countLines(filepath.Join(runDir, "normalized/live-hosts.txt")),
+		IPs:         countIPs(runDir),
+		OpenPorts:   len(dataLines(filepath.Join(runDir, "normalized/open-ports.tsv"))),
+		URLs:        countLines(filepath.Join(runDir, "normalized/urls.txt")),
+		Parameters:  len(dataLines(filepath.Join(runDir, "normalized/parameters.tsv"))),
+		JavaScript:  countLines(filepath.Join(runDir, "normalized/js-files.txt")),
+		JSEndpoints: countLines(filepath.Join(runDir, "normalized/js-endpoints.txt")),
+		DurationSec: duration.Seconds(),
+	}
+}
+
+func renderHuman(records []OutputRecord, summary OutputSummary, silent bool) string {
+	var b strings.Builder
+	for _, record := range records {
+		switch record.Type {
+		case "whois":
+			fmt.Fprintf(&b, "[WHOIS] [%s] %s\n", record.Name, record.Value)
+		case "dns":
+			fmt.Fprintf(&b, "[DNS] [%s] %s -> %s\n", record.RecordType, record.Host, record.Value)
+		case "subdomain":
+			fmt.Fprintf(&b, "[SUB] %s\n", record.Host)
+		case "http":
+			fmt.Fprintf(&b, "[HTTP] [%d] [%s] %s\n", record.Status, strings.Join(record.Tech, ","), record.URL)
+		case "port":
+			fmt.Fprintf(&b, "[PORT] [%d/%s] %s\n", record.Port, record.Service, record.Host)
+		case "url":
+			fmt.Fprintf(&b, "[URL] %s\n", record.URL)
+		case "parameter":
+			fmt.Fprintf(&b, "[PARAM] [%s] %s\n", record.Name, record.URL)
+		case "javascript":
+			fmt.Fprintf(&b, "[JS] %s\n", record.URL)
+		case "js_endpoint":
+			fmt.Fprintf(&b, "[JS-ENDPOINT] %s\n", record.Endpoint)
+		}
+	}
+	if silent {
+		return b.String()
+	}
+	fmt.Fprintf(&b, "\n%s\n", strings.Repeat("-", 40))
+	fmt.Fprintf(&b, "Scan completed in %.1fs\n\n", summary.DurationSec)
+	fmt.Fprintf(&b, "%-16s %d\n", "Subdomains", summary.Subdomains)
+	fmt.Fprintf(&b, "%-16s %d\n", "Live Hosts", summary.LiveHosts)
+	fmt.Fprintf(&b, "%-16s %d\n", "IPs", summary.IPs)
+	fmt.Fprintf(&b, "%-16s %d\n", "Open Ports", summary.OpenPorts)
+	fmt.Fprintf(&b, "%-16s %d\n", "URLs", summary.URLs)
+	fmt.Fprintf(&b, "%-16s %d\n", "Parameters", summary.Parameters)
+	fmt.Fprintf(&b, "%-16s %d\n", "JavaScript", summary.JavaScript)
+	fmt.Fprintf(&b, "%-16s %d\n", "JS Endpoints", summary.JSEndpoints)
+	fmt.Fprintf(&b, "%s\n", strings.Repeat("-", 40))
+	return b.String()
+}
+
+func countIPs(runDir string) int {
+	seen := map[string]struct{}{}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/dns-records.tsv")) {
+		if row["type"] == "A" || row["type"] == "AAAA" {
+			seen[row["value"]] = struct{}{}
+		}
+	}
+	ipPattern := regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`)
+	for _, line := range readLines(filepath.Join(runDir, "normalized/resolved.txt")) {
+		for _, match := range ipPattern.FindAllString(line, -1) {
+			seen[match] = struct{}{}
+		}
+	}
+	return len(seen)
+}
+
+func hostFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return parsed.Hostname()
+}
+
+func splitTech(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == ';'
+	})
+	var out []string
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func WriteJSONL(runDir string) error {
@@ -88,28 +318,39 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 	)
 
 	counts := map[string]int{
+		"WHOIS fields":              max(0, countLines(filepath.Join(runDir, "normalized/whois.tsv"))-1),
+		"DNS records":               max(0, countLines(filepath.Join(runDir, "normalized/dns-records.tsv"))-1),
 		"In-scope subdomains":       countLines(filepath.Join(runDir, "normalized/subdomains.txt")),
 		"Resolved hosts":            countLines(filepath.Join(runDir, "normalized/resolved-hosts.txt")),
 		"Live HTTP/S services":      countLines(filepath.Join(runDir, "normalized/live-hosts.txt")),
+		"IPs":                       countIPs(runDir),
+		"Open ports":                len(dataLines(filepath.Join(runDir, "normalized/open-ports.tsv"))),
+		"URLs":                      countLines(filepath.Join(runDir, "normalized/urls.txt")),
+		"Parameters":                len(dataLines(filepath.Join(runDir, "normalized/parameters.tsv"))),
 		"Interesting hosts":         countLines(filepath.Join(runDir, "notes/interesting-hosts.txt")),
 		"Scored assets":             max(0, countLines(filepath.Join(runDir, "normalized/asset-scores.tsv"))-1),
 		"API docs/schema probes":    countLines(filepath.Join(runDir, "normalized/api-docs-probed.txt")),
 		"OpenAPI method/path pairs": countLines(filepath.Join(runDir, "normalized/openapi-methods.tsv")),
 		"Cloud/secret candidates":   max(0, countLines(filepath.Join(runDir, "notes/cloud-candidates.tsv"))-1),
 		"JavaScript route leads":    countLines(filepath.Join(runDir, "normalized/js-route-leads.txt")),
+		"JavaScript endpoints":      countLines(filepath.Join(runDir, "normalized/js-endpoints.txt")),
 		"Source map candidates":     countLines(filepath.Join(runDir, "normalized/source-map-candidates.txt")),
 		"JSONL events":              countLines(filepath.Join(runDir, "normalized/recon-events.jsonl")),
 	}
 
 	fmt.Fprintf(&b, "## Counts\n\n| Artifact | Count |\n| --- | ---: |\n")
-	for _, key := range []string{"In-scope subdomains", "Resolved hosts", "Live HTTP/S services", "Interesting hosts", "Scored assets", "JavaScript route leads", "Source map candidates", "API docs/schema probes", "OpenAPI method/path pairs", "Cloud/secret candidates", "JSONL events"} {
+	for _, key := range []string{"WHOIS fields", "DNS records", "In-scope subdomains", "Resolved hosts", "Live HTTP/S services", "IPs", "Open ports", "URLs", "Parameters", "Interesting hosts", "Scored assets", "JavaScript route leads", "JavaScript endpoints", "Source map candidates", "API docs/schema probes", "OpenAPI method/path pairs", "Cloud/secret candidates", "JSONL events"} {
 		fmt.Fprintf(&b, "| %s | %d |\n", key, counts[key])
 	}
 	fmt.Fprintf(&b, "\n")
 
 	addTopSection(&b, "High-Signal Review Queue", filepath.Join(runDir, "notes/interesting-hosts.txt"), 20)
+	addTopSection(&b, "Open Ports", filepath.Join(runDir, "normalized/open-ports.tsv"), 25)
+	addTopSection(&b, "URLs", filepath.Join(runDir, "normalized/urls.txt"), 25)
+	addTopSection(&b, "Parameters", filepath.Join(runDir, "normalized/parameters.tsv"), 25)
 	addTopSection(&b, "Top Asset Scores", filepath.Join(runDir, "normalized/asset-scores.tsv"), 25)
 	addTopSection(&b, "JavaScript Leads", filepath.Join(runDir, "notes/js-leads.tsv"), 25)
+	addTopSection(&b, "JavaScript Endpoints", filepath.Join(runDir, "normalized/js-endpoints.txt"), 25)
 	addTopSection(&b, "API Inventory", filepath.Join(runDir, "normalized/api-inventory.tsv"), 25)
 	addTopSection(&b, "Cloud Candidates", filepath.Join(runDir, "notes/cloud-candidates.tsv"), 20)
 	addTopSection(&b, "Wildcard DNS Check", filepath.Join(runDir, "notes/wildcard-dns-check.txt"), 10)
@@ -148,12 +389,18 @@ func WriteText(runDir string, cfg config.Config) error {
 
 	writeToolConfig(&b, cfg.Tools)
 	writeCounts(&b, runDir)
+	writePlainSection(&b, "WHOIS", "These WHOIS fields were extracted:", dataLines(filepath.Join(runDir, "normalized/whois.tsv")))
+	writePlainSection(&b, "DNS RECORDS", "These DNS records were resolved:", dataLines(filepath.Join(runDir, "normalized/dns-records.tsv")))
 	writePlainSection(&b, "SUBDOMAINS", "These subdomains were found:", readLines(filepath.Join(runDir, "normalized/subdomains.txt")))
 	writePlainSection(&b, "RESOLVED HOSTS", "These hosts resolved successfully:", readLines(filepath.Join(runDir, "normalized/resolved-hosts.txt")))
 	writePlainSection(&b, "LIVE HTTP/S SERVICES", "These HTTP/S services responded:", readLines(filepath.Join(runDir, "normalized/live-hosts.txt")))
+	writePlainSection(&b, "OPEN PORTS", "These open ports were discovered:", dataLines(filepath.Join(runDir, "normalized/open-ports.tsv")))
+	writePlainSection(&b, "URLS", "These URLs were collected from historical sources and crawling:", readLines(filepath.Join(runDir, "normalized/urls.txt")))
+	writePlainSection(&b, "PARAMETERS", "These parameters were discovered from URLs or parameter probing:", dataLines(filepath.Join(runDir, "normalized/parameters.tsv")))
 	writePlainSection(&b, "HIGH-SIGNAL REVIEW QUEUE", "Review these first:", readLines(filepath.Join(runDir, "notes/interesting-hosts.txt")))
 	writePlainSection(&b, "JAVASCRIPT FILES", "These JavaScript files were discovered:", readLines(filepath.Join(runDir, "normalized/js-files.txt")))
 	writePlainSection(&b, "JAVASCRIPT ROUTE LEADS", "These route leads were extracted from crawl/JavaScript data:", dataLines(filepath.Join(runDir, "notes/js-leads.tsv")))
+	writePlainSection(&b, "JAVASCRIPT ENDPOINTS", "These endpoints were extracted from JavaScript:", readLines(filepath.Join(runDir, "normalized/js-endpoints.txt")))
 	writePlainSection(&b, "SOURCE MAP CANDIDATES", "These source map candidates were found:", readLines(filepath.Join(runDir, "normalized/source-map-candidates.txt")))
 	writePlainSection(&b, "API DOC/SCHEMA PROBES", "These API documentation/schema paths responded:", readLines(filepath.Join(runDir, "normalized/api-docs-probed.txt")))
 	writePlainSection(&b, "API INVENTORY", "These API endpoints were parsed from schemas:", dataLines(filepath.Join(runDir, "normalized/api-inventory.tsv")))
@@ -181,10 +428,37 @@ func collectEvents(runDir string) []Event {
 	addLineEvents(filepath.Join(runDir, "normalized/subdomains.txt"), "subdomain", "normalized/subdomains.txt")
 	addLineEvents(filepath.Join(runDir, "normalized/resolved-hosts.txt"), "resolved_host", "normalized/resolved-hosts.txt")
 	addLineEvents(filepath.Join(runDir, "notes/interesting-hosts.txt"), "interesting_host", "notes/interesting-hosts.txt")
+	addLineEvents(filepath.Join(runDir, "normalized/urls.txt"), "url", "normalized/urls.txt")
+	addLineEvents(filepath.Join(runDir, "normalized/js-files.txt"), "javascript", "normalized/js-files.txt")
+	addLineEvents(filepath.Join(runDir, "normalized/js-endpoints.txt"), "js_endpoint", "normalized/js-endpoints.txt")
 
 	for _, line := range readLines(filepath.Join(runDir, "normalized/live-hosts.txt")) {
 		fields := parseHTTPXLine(line)
 		events = append(events, Event{Type: "live_service", Value: fields["url"], Source: "normalized/live-hosts.txt", Timestamp: now, Fields: fields})
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/whois.tsv")) {
+		value := row["value"]
+		if value != "" {
+			events = append(events, Event{Type: "whois", Value: value, Source: "normalized/whois.tsv", Timestamp: now, Fields: row})
+		}
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/dns-records.tsv")) {
+		value := strings.TrimSpace(row["type"] + " " + row["name"] + " " + row["value"])
+		if value != "" {
+			events = append(events, Event{Type: "dns", Value: value, Source: "normalized/dns-records.tsv", Timestamp: now, Fields: row})
+		}
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/open-ports.tsv")) {
+		value := strings.TrimSpace(row["host"] + ":" + row["port"])
+		if value != ":" {
+			events = append(events, Event{Type: "port", Value: value, Source: "normalized/open-ports.tsv", Timestamp: now, Fields: row})
+		}
+	}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/parameters.tsv")) {
+		value := row["name"]
+		if value != "" {
+			events = append(events, Event{Type: "parameter", Value: value, Source: "normalized/parameters.tsv", Timestamp: now, Fields: row})
+		}
 	}
 	for _, row := range readTSV(filepath.Join(runDir, "normalized/asset-scores.tsv")) {
 		value := row["url"]
@@ -317,9 +591,14 @@ func writeCounts(b *strings.Builder, runDir string) {
 		{"Subdomains", countLines(filepath.Join(runDir, "normalized/subdomains.txt"))},
 		{"Resolved hosts", countLines(filepath.Join(runDir, "normalized/resolved-hosts.txt"))},
 		{"Live HTTP/S services", countLines(filepath.Join(runDir, "normalized/live-hosts.txt"))},
+		{"IPs", countIPs(runDir)},
+		{"Open ports", len(dataLines(filepath.Join(runDir, "normalized/open-ports.tsv")))},
+		{"URLs", countLines(filepath.Join(runDir, "normalized/urls.txt"))},
+		{"Parameters", len(dataLines(filepath.Join(runDir, "normalized/parameters.tsv")))},
 		{"High-signal hosts", countLines(filepath.Join(runDir, "notes/interesting-hosts.txt"))},
 		{"JavaScript files", countLines(filepath.Join(runDir, "normalized/js-files.txt"))},
 		{"JavaScript route leads", countLines(filepath.Join(runDir, "normalized/js-route-leads.txt"))},
+		{"JavaScript endpoints", countLines(filepath.Join(runDir, "normalized/js-endpoints.txt"))},
 		{"API doc/schema probes", countLines(filepath.Join(runDir, "normalized/api-docs-probed.txt"))},
 		{"API inventory rows", len(dataLines(filepath.Join(runDir, "normalized/api-inventory.tsv")))},
 		{"Cloud candidates", len(dataLines(filepath.Join(runDir, "notes/cloud-candidates.tsv")))},

@@ -24,10 +24,14 @@ type Config struct {
 	CrawlDuration  string `json:"crawl_duration"`
 	MaxDomainPages int    `json:"max_domain_pages"`
 	APIRate        int    `json:"api_rate"`
+	PortRate       int    `json:"port_rate"`
 	ExcludedFile   string `json:"excluded_file"`
 	SkipDeps       bool   `json:"skip_deps"`
 	WriteJSONL     bool   `json:"write_jsonl"`
 	Tools          Tools  `json:"tools"`
+	OutputFormat   string `json:"-"`
+	OutputFile     string `json:"-"`
+	Silent         bool   `json:"-"`
 }
 
 type Tools struct {
@@ -157,6 +161,9 @@ func (c *Config) ApplyProfileDefaults() error {
 		if c.APIRate == 0 {
 			c.APIRate = 20
 		}
+		if c.PortRate == 0 {
+			c.PortRate = 50
+		}
 	case ProfileDeep:
 		if c.ProbeRate == 0 {
 			c.ProbeRate = 25
@@ -176,6 +183,9 @@ func (c *Config) ApplyProfileDefaults() error {
 		if c.APIRate == 0 {
 			c.APIRate = 10
 		}
+		if c.PortRate == 0 {
+			c.PortRate = 25
+		}
 	default:
 		return errors.New("profile must be one of: passive, balanced, deep")
 	}
@@ -191,6 +201,7 @@ func Example() Config {
 	cfg.CrawlDuration = "45s"
 	cfg.MaxDomainPages = 75
 	cfg.APIRate = 20
+	cfg.PortRate = 50
 	return cfg
 }
 

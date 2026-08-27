@@ -14,7 +14,7 @@ Each line is one JSON object:
 
 | Field | Meaning |
 | --- | --- |
-| type | Event category, such as `subdomain`, `live_service`, `api_endpoint`, `cloud_candidate` |
+| type | Event category, such as `whois`, `dns`, `subdomain`, `live_service`, `port`, `url`, `parameter`, `javascript`, `js_endpoint`, `api_endpoint`, `cloud_candidate` |
 | value | Primary value for quick filtering |
 | source | File that produced the event |
 | timestamp | UTC generation time |
@@ -35,6 +35,54 @@ https://app.example.com [200] [Sign in] [React,nginx] [14320]
 | title | HTML title or detected label |
 | technology | httpx technology hints |
 | content_length | Response size hint |
+
+## `normalized/whois.tsv`
+
+Produced by `peyda run`.
+
+| Column | Meaning |
+| --- | --- |
+| key | WHOIS field name, such as registrar or name_servers |
+| value | Extracted field value |
+
+## `normalized/dns-records.tsv`
+
+Produced by `peyda run`.
+
+| Column | Meaning |
+| --- | --- |
+| type | DNS record type, such as A, AAAA, MX, NS, or TXT |
+| name | Queried domain name |
+| value | Resolved record value |
+
+## `normalized/open-ports.tsv`
+
+Produced by `peyda run` in `balanced` and `deep` profiles when `naabu` is available.
+
+| Column | Meaning |
+| --- | --- |
+| host | Hostname |
+| port | Open TCP port |
+| service | Service hint from common ports or `nmap` enrichment |
+| source | Tool source, such as `naabu` or `naabu,nmap` |
+
+## `normalized/urls.txt`
+
+Produced by `peyda run` in `balanced` and `deep` profiles from `gau` and crawler output.
+
+## `normalized/parameters.tsv`
+
+Produced by `peyda run` in `balanced` and `deep` profiles from URL query strings and optional `Arjun` output.
+
+| Column | Meaning |
+| --- | --- |
+| name | Parameter name |
+| url | URL template containing the parameter |
+| source | Discovery source, such as `url` or `arjun` |
+
+## `normalized/js-endpoints.txt`
+
+Produced by `peyda run` in `balanced` and `deep` profiles from `xnLinkFinder` and native JavaScript route extraction.
 
 ## `notes/interesting-hosts.txt`
 

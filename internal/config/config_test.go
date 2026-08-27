@@ -15,10 +15,11 @@ func TestApplyProfileDefaults(t *testing.T) {
 		crawlDuration  string
 		maxDomainPages int
 		api            int
+		port           int
 	}{
-		{ProfilePassive, 10, 0, 0, "", 0, 0},
-		{ProfileBalanced, 50, 10, 1, "45s", 75, 20},
-		{ProfileDeep, 25, 5, 5, "30m", 5000, 10},
+		{ProfilePassive, 10, 0, 0, "", 0, 0, 0},
+		{ProfileBalanced, 50, 10, 1, "45s", 75, 20, 50},
+		{ProfileDeep, 25, 5, 5, "30m", 5000, 10, 25},
 	}
 
 	for _, tt := range tests {
@@ -31,8 +32,9 @@ func TestApplyProfileDefaults(t *testing.T) {
 			cfg.CrawlDepth != tt.crawlDepth ||
 			cfg.CrawlDuration != tt.crawlDuration ||
 			cfg.MaxDomainPages != tt.maxDomainPages ||
-			cfg.APIRate != tt.api {
-			t.Fatalf("%s defaults = probe %d crawl %d depth %d duration %q max pages %d api %d",
+			cfg.APIRate != tt.api ||
+			cfg.PortRate != tt.port {
+			t.Fatalf("%s defaults = probe %d crawl %d depth %d duration %q max pages %d api %d port %d",
 				tt.profile,
 				cfg.ProbeRate,
 				cfg.CrawlRate,
@@ -40,6 +42,7 @@ func TestApplyProfileDefaults(t *testing.T) {
 				cfg.CrawlDuration,
 				cfg.MaxDomainPages,
 				cfg.APIRate,
+				cfg.PortRate,
 			)
 		}
 	}

@@ -3,6 +3,7 @@ package cloud
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -36,11 +37,18 @@ var cloudPattern = regexp.MustCompile(`(?i)(amazonaws\.com|s3[.-]|cloudfront\.ne
 var secretPattern = regexp.MustCompile(`(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|BEGIN PRIVATE KEY|xox[baprs]-[A-Za-z0-9-]+|ghp_[A-Za-z0-9_]{30,}|AIza[0-9A-Za-z_-]{20,})`)
 
 func Run(runDir string) (Result, error) {
+	return RunWithOutput(runDir, os.Stdout)
+}
+
+func RunWithOutput(runDir string, out io.Writer) (Result, error) {
+	if out == nil {
+		out = io.Discard
+	}
 	if err := ensureDirs(runDir); err != nil {
 		return Result{}, err
 	}
 
-	fmt.Println("[cloud] Extracting cloud provider hints...")
+	fmt.Fprintln(out, "[cloud] Extracting cloud provider hints...")
 	providerMatches, err := scan(runDir, cloudPattern)
 	if err != nil {
 		return Result{}, err
@@ -49,7 +57,7 @@ func Run(runDir string) (Result, error) {
 		return Result{}, err
 	}
 
-	fmt.Println("[cloud] Extracting secret-looking strings...")
+	fmt.Fprintln(out, "[cloud] Extracting secret-looking strings...")
 	secretMatches, err := scan(runDir, secretPattern)
 	if err != nil {
 		return Result{}, err
@@ -68,7 +76,7 @@ func Run(runDir string) (Result, error) {
 		SecretHints:   len(secretMatches),
 		Candidates:    len(candidates),
 	}
-	fmt.Printf("[cloud] provider_hints=%d secret_hints=%d candidates=%d\n",
+	fmt.Fprintf(out, "[cloud] provider_hints=%d secret_hints=%d candidates=%d\n",
 		result.ProviderHints, result.SecretHints, result.Candidates)
 	return result, nil
 }

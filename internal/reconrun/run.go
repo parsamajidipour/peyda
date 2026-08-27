@@ -3,6 +3,7 @@ package reconrun
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,20 +13,34 @@ import (
 	"github.com/parsamajidipour/peyda/internal/cloud"
 	"github.com/parsamajidipour/peyda/internal/config"
 	"github.com/parsamajidipour/peyda/internal/deps"
+	"github.com/parsamajidipour/peyda/internal/hostinfo"
 	"github.com/parsamajidipour/peyda/internal/jsrecon"
+	"github.com/parsamajidipour/peyda/internal/ports"
 	"github.com/parsamajidipour/peyda/internal/report"
 	"github.com/parsamajidipour/peyda/internal/subdomain"
+	"github.com/parsamajidipour/peyda/internal/urlrecon"
 )
 
 func Run(root string, cfg config.Config) error {
+	start := time.Now()
+	logOut := io.Discard
+
 	if !cfg.SkipDeps && cfg.Profile != config.ProfilePassive {
-		if err := deps.Run(root, deps.Ensure, os.Stdout); err != nil {
+		if err := deps.Run(root, deps.Ensure, logOut); err != nil {
 			return err
 		}
 	}
 
 	runDir, err := Init(cfg)
 	if err != nil {
+		return err
+	}
+
+	if _, err := hostinfo.Run(hostinfo.Options{
+		RunDir: runDir,
+		Target: cfg.Target,
+		Out:    logOut,
+	}); err != nil {
 		return err
 	}
 
@@ -38,6 +53,7 @@ func Run(root string, cfg config.Config) error {
 			Resolve: false,
 			Probe:   false,
 			Tools:   cfg.Tools,
+			Out:     logOut,
 		})
 	default:
 		_, err = subdomain.Run(subdomain.Options{
@@ -48,6 +64,7 @@ func Run(root string, cfg config.Config) error {
 			Resolve:   true,
 			Probe:     true,
 			Tools:     cfg.Tools,
+			Out:       logOut,
 		})
 	}
 	if err != nil {
@@ -57,6 +74,20 @@ func Run(root string, cfg config.Config) error {
 	switch cfg.Profile {
 	case config.ProfilePassive:
 	default:
+		if _, err := ports.Run(ports.Options{
+			RunDir: runDir,
+			Rate:   cfg.PortRate,
+			Out:    logOut,
+		}); err != nil {
+			fmt.Fprintf(logOut, "[peyda] port scan skipped or failed: %v\n", err)
+		}
+		if err := urlrecon.RunGau(urlrecon.Options{
+			RunDir: runDir,
+			Target: cfg.Target,
+			Out:    logOut,
+		}); err != nil {
+			fmt.Fprintf(logOut, "[peyda] gau URL collection skipped or failed: %v\n", err)
+		}
 		if _, err := jsrecon.Run(jsrecon.Options{
 			Root:           root,
 			RunDir:         runDir,
@@ -66,18 +97,27 @@ func Run(root string, cfg config.Config) error {
 			CrawlDuration:  cfg.CrawlDuration,
 			MaxDomainPages: cfg.MaxDomainPages,
 			Tools:          cfg.Tools,
+			Out:            logOut,
 		}); err != nil {
-			fmt.Fprintf(os.Stdout, "[peyda] JS recon skipped or failed: %v\n", err)
+			fmt.Fprintf(logOut, "[peyda] JS recon skipped or failed: %v\n", err)
+		}
+		if _, err := urlrecon.RunPostJS(urlrecon.Options{
+			RunDir: runDir,
+			Target: cfg.Target,
+			Out:    logOut,
+		}); err != nil {
+			fmt.Fprintf(logOut, "[peyda] URL/parameter recon skipped or failed: %v\n", err)
 		}
 		if _, err := apidiscovery.Run(apidiscovery.Options{
 			Root:      root,
 			RunDir:    runDir,
 			ProbeRate: cfg.APIRate,
 			Tools:     cfg.Tools,
+			Out:       logOut,
 		}); err != nil {
 			return err
 		}
-		if _, err := cloud.Run(runDir); err != nil {
+		if _, err := cloud.RunWithOutput(runDir, logOut); err != nil {
 			return err
 		}
 	}
@@ -94,14 +134,7 @@ func Run(root string, cfg config.Config) error {
 		return err
 	}
 
-	fmt.Printf("\n[INF] Recon complete\n")
-	fmt.Printf("[INF] Output directory: %s\n", runDir)
-	fmt.Printf("[INF] Text report: %s\n", filepath.Join(runDir, "notes/recon-report.txt"))
-	fmt.Printf("[INF] Markdown summary: %s\n", filepath.Join(runDir, "notes/recon-summary.md"))
-	if cfg.WriteJSONL {
-		fmt.Printf("[INF] JSONL events: %s\n", filepath.Join(runDir, "normalized/recon-events.jsonl"))
-	}
-	return nil
+	return report.WriteCLIOutput(os.Stdout, runDir, cfg, time.Since(start))
 }
 
 func Init(cfg config.Config) (string, error) {

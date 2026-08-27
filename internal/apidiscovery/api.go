@@ -24,6 +24,7 @@ type Options struct {
 	RunDir    string
 	ProbeRate int
 	Tools     config.Tools
+	Out       io.Writer
 }
 
 type Result struct {
@@ -57,6 +58,9 @@ func Run(opts Options) (Result, error) {
 	if opts.ProbeRate == 0 {
 		opts.ProbeRate = 20
 	}
+	if opts.Out == nil {
+		opts.Out = os.Stdout
+	}
 	if err := ensureDirs(opts.RunDir); err != nil {
 		return Result{}, err
 	}
@@ -68,7 +72,7 @@ func Run(opts Options) (Result, error) {
 	}
 	defer logFile.Close()
 	log := func(format string, args ...any) {
-		fmt.Printf(format+"\n", args...)
+		fmt.Fprintf(opts.Out, format+"\n", args...)
 		fmt.Fprintf(logFile, format+"\n", args...)
 	}
 
@@ -268,7 +272,7 @@ func probeDocs(opts Options) error {
 	cmd := exec.Command(httpxPath, httpxArgs(opts.Tools.HTTPX, input, output, opts.ProbeRate)...)
 	cmd.Dir = opts.Root
 	cmd.Stdout = io.Discard
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	if err := cmd.Run(); err != nil {
 		return err

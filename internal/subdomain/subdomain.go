@@ -27,6 +27,7 @@ type Options struct {
 	Resolve   bool
 	Probe     bool
 	Tools     config.Tools
+	Out       io.Writer
 }
 
 type Result struct {
@@ -51,6 +52,9 @@ func Run(opts Options) (Result, error) {
 	if opts.ProbeRate == 0 {
 		opts.ProbeRate = 50
 	}
+	if opts.Out == nil {
+		opts.Out = os.Stdout
+	}
 	if err := ensureDirs(opts.RunDir); err != nil {
 		return Result{}, err
 	}
@@ -63,7 +67,7 @@ func Run(opts Options) (Result, error) {
 	defer logFile.Close()
 
 	log := func(format string, args ...any) {
-		fmt.Printf(format+"\n", args...)
+		fmt.Fprintf(opts.Out, format+"\n", args...)
 		fmt.Fprintf(logFile, format+"\n", args...)
 	}
 
@@ -140,11 +144,14 @@ func Run(opts Options) (Result, error) {
 }
 
 func runSubfinder(opts Options) error {
+	output := filepath.Join(opts.RunDir, "raw/subfinder.txt")
+	if isReservedTestDomain(opts.Target) {
+		return writeLines(output, nil)
+	}
 	path, err := deps.LookPath("subfinder")
 	if err != nil {
 		return err
 	}
-	output := filepath.Join(opts.RunDir, "raw/subfinder.txt")
 	_ = os.Remove(output)
 	args := []string{"-d", opts.Target, "-silent"}
 	if opts.Tools.Subfinder.All {
@@ -157,7 +164,7 @@ func runSubfinder(opts Options) error {
 	cmd := exec.Command(path, args...)
 	cmd.Dir = opts.Root
 	cmd.Stdout = io.Discard
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	return cmd.Run()
 }
@@ -265,7 +272,7 @@ func runTool(root, path string, args ...string) error {
 	cmd := exec.Command(path, args...)
 	cmd.Dir = root
 	cmd.Stdout = io.Discard
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	return cmd.Run()
 }

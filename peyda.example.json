@@ -8,6 +8,7 @@
   "crawl_duration": "45s",
   "max_domain_pages": 75,
   "api_rate": 20,
+  "port_rate": 50,
   "excluded_file": "",
   "skip_deps": false,
   "write_jsonl": true,

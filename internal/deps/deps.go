@@ -49,19 +49,22 @@ type ToolStatus struct {
 }
 
 type goTool struct {
-	name   string
-	module string
+	name     string
+	module   string
+	optional bool
 }
 
 var goTools = []goTool{
-	{"subfinder", "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"},
-	{"dnsx", "github.com/projectdiscovery/dnsx/cmd/dnsx@latest"},
-	{"httpx", "github.com/projectdiscovery/httpx/cmd/httpx@latest"},
-	{"katana", "github.com/projectdiscovery/katana/cmd/katana@latest"},
+	{"subfinder", "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest", false},
+	{"dnsx", "github.com/projectdiscovery/dnsx/cmd/dnsx@latest", false},
+	{"httpx", "github.com/projectdiscovery/httpx/cmd/httpx@latest", false},
+	{"naabu", "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest", true},
+	{"gau", "github.com/lc/gau/v2/cmd/gau@latest", true},
+	{"katana", "github.com/projectdiscovery/katana/cmd/katana@latest", false},
 }
 
 var requiredSystemTools []string
-var optionalSystemTools = []string{"rg"}
+var optionalSystemTools = []string{"rg", "whois", "dig", "nmap", "arjun", "xnLinkFinder", "xnlinkfinder"}
 
 func (m Manager) Run(mode Mode) error {
 	if m.Out == nil {
@@ -105,12 +108,25 @@ func (m Manager) Run(mode Mode) error {
 			}
 			continue
 		}
+		if tool.optional {
+			if _, err := exec.LookPath("go"); err != nil {
+				fmt.Fprintf(m.Out, "[deps] Optional missing: %s (Go required to install)\n", tool.name)
+				continue
+			}
+		}
 		if err := m.installGoTool(tool); err != nil {
+			if tool.optional {
+				fmt.Fprintf(m.Out, "[deps] Optional install failed: %s (%v)\n", tool.name, err)
+				continue
+			}
 			return err
 		}
 		status = m.checkGoTool(tool)
 		m.printStatus(status)
 		if !status.OK {
+			if tool.optional {
+				continue
+			}
 			return fmt.Errorf("%s installation finished, but the expected tool is still unavailable", tool.name)
 		}
 	}
@@ -132,7 +148,7 @@ func (m Manager) checkTool(name string, optional bool) ToolStatus {
 }
 
 func (m Manager) checkGoTool(tool goTool) ToolStatus {
-	status := m.checkTool(tool.name, false)
+	status := m.checkTool(tool.name, tool.optional)
 	if !status.OK {
 		return status
 	}

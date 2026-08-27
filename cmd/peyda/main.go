@@ -36,7 +36,11 @@ func main() {
 	case "help", "-h", "--help":
 		usage()
 	default:
-		err = fmt.Errorf("unknown command: %s", os.Args[1])
+		if strings.HasPrefix(os.Args[1], "-") {
+			err = fmt.Errorf("unknown command: %s", os.Args[1])
+		} else {
+			err = runCommand(os.Args[1:])
+		}
 	}
 
 	if err != nil {
@@ -49,6 +53,7 @@ func usage() {
 	fmt.Print(`peyda - scope-first reconnaissance CLI
 
 Usage:
+  peyda example.com [--profile balanced] [-silent] [-json|-jsonl] [-o result.txt]
   peyda run example.com [--profile balanced] [--config peyda.json] [--no-jsonl]
   peyda deps [--check | --update]
   peyda init example.com [-d YYYY-MM-DD] [-o runs] [-e excluded.txt]
@@ -70,6 +75,9 @@ Profiles:
 Examples:
   peyda deps --check
   peyda deps
+  peyda example.com --profile deep
+  peyda example.com -silent
+  peyda example.com -jsonl -o results.jsonl
   peyda run example.com --profile balanced -p 25
   peyda run example.com --profile deep
   peyda run example.com --profile passive --no-jsonl
@@ -78,7 +86,7 @@ Examples:
 
 Output:
   default: ./runs/example.com/YYYY-MM-DD/
-  with -o: <output-root>/example.com/YYYY-MM-DD/
+  with --output-dir: <output-root>/example.com/YYYY-MM-DD/
   report:  notes/recon-report.txt
 
 `)
@@ -88,7 +96,8 @@ func runCommand(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	target := fs.String("t", "", "target root domain; optional when target is passed positionally")
 	date := fs.String("d", "", "UTC run date")
-	outputRoot := fs.String("o", "", "output root; defaults to ./runs in the current directory")
+	outputFile := fs.String("o", "", "write CLI output to file")
+	outputRoot := fs.String("output-dir", "", "artifact output root; defaults to ./runs in the current directory")
 	profile := fs.String("profile", "", "depth profile: passive, balanced, deep")
 	configPath := fs.String("config", "", "optional JSON config file")
 	excluded := fs.String("e", "", "excluded-host file")
@@ -98,6 +107,9 @@ func runCommand(args []string) error {
 	maxDomainPages := fs.Int("max-domain-pages", 0, "maximum crawled pages per domain")
 	skipDeps := fs.Bool("skip-deps", false, "skip dependency preparation")
 	noJSONL := fs.Bool("no-jsonl", false, "disable normalized/recon-events.jsonl")
+	silent := fs.Bool("silent", false, "print only result lines without banner or summary")
+	jsonOut := fs.Bool("json", false, "print final output as JSON")
+	jsonlOut := fs.Bool("jsonl", false, "print final output as JSONL")
 	positionalTarget, filteredArgs, err := extractRunTarget(args)
 	if err != nil {
 		return err
@@ -121,6 +133,9 @@ func runCommand(args []string) error {
 	}
 	if *outputRoot != "" {
 		cfg.OutputRoot = *outputRoot
+	}
+	if *outputFile != "" {
+		cfg.OutputFile = *outputFile
 	}
 	if *profile != "" {
 		cfg.Profile = *profile
@@ -146,6 +161,20 @@ func runCommand(args []string) error {
 	if *noJSONL {
 		cfg.WriteJSONL = false
 	}
+	if *silent {
+		cfg.Silent = true
+	}
+	switch {
+	case *jsonOut && *jsonlOut:
+		return errors.New("use only one output format: -json or -jsonl")
+	case *jsonOut:
+		cfg.OutputFormat = "json"
+	case *jsonlOut:
+		cfg.OutputFormat = "jsonl"
+		cfg.WriteJSONL = true
+	default:
+		cfg.OutputFormat = "human"
+	}
 
 	if cfg.Target == "" {
 		return errors.New("target is required")
@@ -155,7 +184,9 @@ func runCommand(args []string) error {
 	}
 
 	root, _ := reconrun.FindRepoRoot()
-	printBanner()
+	if cfg.OutputFormat == "human" && !cfg.Silent {
+		printBanner()
+	}
 	return reconrun.Run(root, cfg)
 }
 
@@ -168,6 +199,7 @@ func extractRunTarget(args []string) (string, []string, error) {
 		"-p": {}, "--p": {},
 		"--profile":          {},
 		"--config":           {},
+		"--output-dir":       {},
 		"--crawl-depth":      {},
 		"--crawl-duration":   {},
 		"--max-domain-pages": {},
