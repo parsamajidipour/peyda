@@ -114,33 +114,39 @@ peyda deps
 Run a normal balanced recon:
 
 ```bash
-peyda run -t example.com --profile balanced
+peyda run example.com --profile balanced
 ```
 
 Run with a lower HTTP probe rate:
 
 ```bash
-peyda run -t example.com --profile balanced -p 25
+peyda run example.com --profile balanced -p 25
 ```
 
 Write output to a specific directory:
 
 ```bash
-peyda run -t example.com --profile balanced -o ~/recon-results
+peyda run example.com --profile balanced -o ~/recon-results
 ```
 
 If `-o` is not provided, `peyda` writes to `./runs` under the directory where the command was executed.
 
+For compatibility, `-t` still works:
+
+```bash
+peyda run -t example.com --profile balanced
+```
+
 Run a passive-only pass:
 
 ```bash
-peyda run -t example.com --profile passive
+peyda run example.com --profile passive
 ```
 
 Run a deeper pass:
 
 ```bash
-peyda run -t example.com --profile deep
+peyda run example.com --profile deep
 ```
 
 Open the final text report:
@@ -206,7 +212,7 @@ Profiles are safe presets. Use them when you do not want to tune every option ma
 | --- | --- | --- |
 | `passive` | First look, scope expansion, low-noise inventory | Passive subdomain discovery and normalization only |
 | `balanced` | Normal bug bounty recon | DNS, HTTP, JS, API, cloud hints, depth-1 crawl, moderate caps |
-| `deep` | Larger scopes or dedicated review windows | Higher probe/crawl rates, depth-3 crawl, larger page caps |
+| `deep` | Large scopes or dedicated review windows | Exhaustive crawl caps with slower, rate-limit-aware probing |
 
 Balanced defaults:
 
@@ -225,14 +231,16 @@ Deep defaults:
 
 ```json
 {
-  "probe_rate": 100,
-  "crawl_rate": 50,
-  "crawl_depth": 3,
-  "crawl_duration": "5m",
-  "max_domain_pages": 500,
-  "api_rate": 50
+  "probe_rate": 25,
+  "crawl_rate": 5,
+  "crawl_depth": 5,
+  "crawl_duration": "30m",
+  "max_domain_pages": 5000,
+  "api_rate": 10
 }
 ```
+
+Deep mode is intentionally slower. It favors broader coverage across live subdomains and deeper crawling over speed, which makes it better for long authorized recon windows.
 
 ## Configuration Model
 
@@ -325,7 +333,7 @@ Meaning:
 | `probe_rate` | Rate limit for live HTTP probing |
 | `crawl_rate` | Rate limit for Katana crawling |
 | `crawl_depth` | Maximum crawl depth |
-| `crawl_duration` | Maximum crawl time, such as `30s`, `2m`, or `5m` |
+| `crawl_duration` | Maximum crawl time, such as `30s`, `2m`, `5m`, or `30m` |
 | `max_domain_pages` | Maximum pages Katana should crawl per domain |
 | `api_rate` | Rate limit for API docs/schema probing |
 

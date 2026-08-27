@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/parsamajidipour/peyda/internal/config"
@@ -48,9 +49,9 @@ func usage() {
 	fmt.Print(`peyda - scope-first reconnaissance CLI
 
 Usage:
-  peyda run -t example.com [--profile balanced] [--config peyda.json] [--no-jsonl]
+  peyda run example.com [--profile balanced] [--config peyda.json] [--no-jsonl]
   peyda deps [--check | --update]
-  peyda init -t example.com [-d YYYY-MM-DD] [-o runs] [-e excluded.txt]
+  peyda init example.com [-d YYYY-MM-DD] [-o runs] [-e excluded.txt]
   peyda config init [-o peyda.example.json]
   peyda version
 
@@ -64,13 +65,14 @@ Commands:
 Profiles:
   passive   Passive collection and normalization only
   balanced  Subdomains, live probing, JS, API, cloud leads
-  deep      Balanced workflow with deeper crawl/probe limits
+  deep      Slow exhaustive recon with deeper crawling and larger caps
 
 Examples:
   peyda deps --check
   peyda deps
-  peyda run -t example.com --profile balanced -p 25
-  peyda run -t example.com --profile passive --no-jsonl
+  peyda run example.com --profile balanced -p 25
+  peyda run example.com --profile deep
+  peyda run example.com --profile passive --no-jsonl
   peyda config init -o peyda.json
   peyda run --config peyda.json
 
@@ -84,7 +86,7 @@ Output:
 
 func runCommand(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
-	target := fs.String("t", "", "target root domain")
+	target := fs.String("t", "", "target root domain; optional when target is passed positionally")
 	date := fs.String("d", "", "UTC run date")
 	outputRoot := fs.String("o", "", "output root; defaults to ./runs in the current directory")
 	profile := fs.String("profile", "", "depth profile: passive, balanced, deep")
@@ -96,7 +98,11 @@ func runCommand(args []string) error {
 	maxDomainPages := fs.Int("max-domain-pages", 0, "maximum crawled pages per domain")
 	skipDeps := fs.Bool("skip-deps", false, "skip dependency preparation")
 	noJSONL := fs.Bool("no-jsonl", false, "disable normalized/recon-events.jsonl")
-	if err := fs.Parse(args); err != nil {
+	positionalTarget, filteredArgs, err := extractRunTarget(args)
+	if err != nil {
+		return err
+	}
+	if err := fs.Parse(filteredArgs); err != nil {
 		return err
 	}
 
@@ -106,6 +112,9 @@ func runCommand(args []string) error {
 	}
 	if *target != "" {
 		cfg.Target = *target
+	}
+	if cfg.Target == "" && positionalTarget != "" {
+		cfg.Target = positionalTarget
 	}
 	if *date != "" {
 		cfg.RunDate = *date
@@ -150,6 +159,50 @@ func runCommand(args []string) error {
 	return reconrun.Run(root, cfg)
 }
 
+func extractRunTarget(args []string) (string, []string, error) {
+	valueFlags := map[string]struct{}{
+		"-t": {}, "--t": {},
+		"-d": {}, "--d": {},
+		"-o": {}, "--o": {},
+		"-e": {}, "--e": {},
+		"-p": {}, "--p": {},
+		"--profile":          {},
+		"--config":           {},
+		"--crawl-depth":      {},
+		"--crawl-duration":   {},
+		"--max-domain-pages": {},
+	}
+
+	var target string
+	filtered := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			if target == "" && i+1 < len(args) {
+				target = args[i+1]
+				i++
+				continue
+			}
+			filtered = append(filtered, arg)
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			filtered = append(filtered, arg)
+			if _, needsValue := valueFlags[arg]; needsValue && i+1 < len(args) {
+				i++
+				filtered = append(filtered, args[i])
+			}
+			continue
+		}
+		if target == "" {
+			target = arg
+			continue
+		}
+		return "", nil, fmt.Errorf("unexpected extra argument: %s", arg)
+	}
+	return target, filtered, nil
+}
+
 func printBanner() {
 	fmt.Print(`
  ____  _______   ______   _
@@ -189,19 +242,27 @@ func depsCommand(args []string) error {
 
 func initCommand(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
-	target := fs.String("t", "", "target root domain")
+	target := fs.String("t", "", "target root domain; optional when target is passed positionally")
 	date := fs.String("d", time.Now().UTC().Format("2006-01-02"), "UTC run date")
 	outputRoot := fs.String("o", "runs", "output root; defaults to ./runs in the current directory")
 	excluded := fs.String("e", "", "excluded-host file")
-	if err := fs.Parse(args); err != nil {
+	positionalTarget, filteredArgs, err := extractRunTarget(args)
+	if err != nil {
 		return err
 	}
-	if *target == "" {
+	if err := fs.Parse(filteredArgs); err != nil {
+		return err
+	}
+	finalTarget := *target
+	if finalTarget == "" {
+		finalTarget = positionalTarget
+	}
+	if finalTarget == "" {
 		return errors.New("target is required")
 	}
 
 	cfg := config.Config{
-		Target:       *target,
+		Target:       finalTarget,
 		RunDate:      *date,
 		OutputRoot:   *outputRoot,
 		ExcludedFile: *excluded,

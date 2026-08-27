@@ -53,27 +53,29 @@ wins over the Python `httpx` CLI when both are installed.
 Balanced profile:
 
 ```bash
-peyda run -t example.com --profile balanced -p 50
+peyda run example.com --profile balanced -p 50
 ```
 
 Choose an output directory:
 
 ```bash
-peyda run -t example.com --profile balanced -o ~/recon-results
+peyda run example.com --profile balanced -o ~/recon-results
 ```
 
 Without `-o`, output is written to `./runs` under the directory where `peyda` was executed.
 
+The legacy `-t` form still works, but the positional target is preferred.
+
 Passive profile:
 
 ```bash
-peyda run -t example.com --profile passive
+peyda run example.com --profile passive
 ```
 
 Deep profile:
 
 ```bash
-peyda run -t example.com --profile deep
+peyda run example.com --profile deep
 ```
 
 ## 4. Use a Config File
@@ -198,7 +200,7 @@ column -t -s $'\t' "$latest_run/normalized/asset-scores.tsv" | less -S
 | --- | --- | --- |
 | `passive` | Safe first pass, scope expansion, asset inventory | No DNS or HTTP probing |
 | `balanced` | Normal bug bounty recon | DNS, HTTP, JS, API, cloud hints; depth 1 crawl capped to 75 pages/domain |
-| `deep` | Larger scopes or dedicated review windows | Higher probe and crawl limits; depth 3 crawl capped to 500 pages/domain |
+| `deep` | Larger scopes or dedicated review windows | Slower rate-limit-aware probing; depth 5 crawl capped to 5000 pages/domain |
 
 ## Troubleshooting
 

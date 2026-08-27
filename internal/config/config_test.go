@@ -18,7 +18,7 @@ func TestApplyProfileDefaults(t *testing.T) {
 	}{
 		{ProfilePassive, 10, 0, 0, "", 0, 0},
 		{ProfileBalanced, 50, 10, 1, "45s", 75, 20},
-		{ProfileDeep, 100, 50, 3, "5m", 500, 50},
+		{ProfileDeep, 25, 5, 5, "30m", 5000, 10},
 	}
 
 	for _, tt := range tests {

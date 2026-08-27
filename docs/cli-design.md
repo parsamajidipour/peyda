@@ -8,7 +8,7 @@ the data produced by the tool.
 
 ```bash
 go install ./cmd/peyda
-peyda run -t example.com --profile balanced -p 50
+peyda run example.com --profile balanced -p 50
 ```
 
 Commands:
@@ -42,7 +42,7 @@ Commands:
 | --- | --- |
 | `passive` | Passive subdomain collection only; no DNS or HTTP probing or active dependency setup |
 | `balanced` | Standard recon pipeline with moderate limits |
-| `deep` | Higher probe and crawl rates for larger authorized scopes |
+| `deep` | Exhaustive, slower, rate-limit-aware crawl and probe settings for large authorized scopes |
 
 ## Configuration Model
 

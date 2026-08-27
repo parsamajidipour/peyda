@@ -159,22 +159,22 @@ func (c *Config) ApplyProfileDefaults() error {
 		}
 	case ProfileDeep:
 		if c.ProbeRate == 0 {
-			c.ProbeRate = 100
+			c.ProbeRate = 25
 		}
 		if c.CrawlRate == 0 {
-			c.CrawlRate = 50
+			c.CrawlRate = 5
 		}
 		if c.CrawlDepth == 0 {
-			c.CrawlDepth = 3
+			c.CrawlDepth = 5
 		}
 		if c.CrawlDuration == "" {
-			c.CrawlDuration = "5m"
+			c.CrawlDuration = "30m"
 		}
 		if c.MaxDomainPages == 0 {
-			c.MaxDomainPages = 500
+			c.MaxDomainPages = 5000
 		}
 		if c.APIRate == 0 {
-			c.APIRate = 50
+			c.APIRate = 10
 		}
 	default:
 		return errors.New("profile must be one of: passive, balanced, deep")
