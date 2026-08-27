@@ -13,13 +13,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/parsamajidipour/peyda/internal/config"
 	"github.com/parsamajidipour/peyda/internal/deps"
 )
 
 type Options struct {
-	RunDir string
-	Target string
-	Out    io.Writer
+	RunDir  string
+	Target  string
+	Profile string
+	Tools   config.Tools
+	Out     io.Writer
 }
 
 type Result struct {
@@ -36,7 +39,7 @@ func RunGau(opts Options) error {
 		return err
 	}
 	fmt.Fprintf(opts.Out, "[url] Fetching historical URLs with gau...\n")
-	return runGau(opts.RunDir, opts.Target)
+	return runGau(opts.RunDir, opts.Target, opts.Tools.Gau)
 }
 
 func RunPostJS(opts Options) (Result, error) {
@@ -55,14 +58,14 @@ func RunPostJS(opts Options) (Result, error) {
 
 	fmt.Fprintf(opts.Out, "[param] Extracting parameters from URLs and Arjun...\n")
 	params := extractParameters(urls)
-	params = append(params, runArjun(opts.RunDir)...)
+	params = append(params, runArjun(opts.RunDir, opts.Tools.Arjun)...)
 	params = uniqueRows(params)
 	if err := writeLines(filepath.Join(opts.RunDir, "normalized/parameters.tsv"), append([]string{"name\turl\tsource"}, params...)); err != nil {
 		return Result{}, err
 	}
 
 	fmt.Fprintf(opts.Out, "[js] Extracting JS endpoints with xnLinkFinder fallback...\n")
-	endpoints := collectJSEndpoints(opts.RunDir)
+	endpoints := collectJSEndpoints(opts.RunDir, opts.Tools.XNLinkFinder)
 	if err := writeLines(filepath.Join(opts.RunDir, "normalized/js-endpoints.txt"), endpoints); err != nil {
 		return Result{}, err
 	}
@@ -70,13 +73,30 @@ func RunPostJS(opts Options) (Result, error) {
 	return Result{URLs: len(urls), Parameters: len(params), JSEndpoints: len(endpoints)}, nil
 }
 
-func runGau(runDir, target string) error {
+func runGau(runDir, target string, tool config.GauTool) error {
 	output := filepath.Join(runDir, "raw/gau-urls.txt")
 	path, err := deps.LookPath("gau")
 	if err != nil {
 		return writeLines(output, nil)
 	}
-	cmd := exec.Command(path, "--subs", target)
+	args := []string{}
+	if tool.Subs {
+		args = append(args, "--subs")
+	}
+	if len(tool.Providers) > 0 {
+		args = append(args, "--providers", strings.Join(tool.Providers, ","))
+	}
+	if tool.Retries > 0 {
+		args = append(args, "--retries", fmt.Sprint(tool.Retries))
+	}
+	if tool.Timeout > 0 {
+		args = append(args, "--timeout", fmt.Sprint(tool.Timeout))
+	}
+	if tool.Threads > 0 {
+		args = append(args, "--threads", fmt.Sprint(tool.Threads))
+	}
+	args = append(args, target)
+	cmd := exec.Command(path, args...)
 	cmd.Stdout = nil
 	cmd.Stderr = io.Discard
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
@@ -120,7 +140,10 @@ func extractParameters(urls []string) []string {
 	return sortedKeys(seen)
 }
 
-func runArjun(runDir string) []string {
+func runArjun(runDir string, tool config.ArjunTool) []string {
+	if !tool.Enabled {
+		return nil
+	}
 	path, err := deps.LookPath("arjun")
 	if err != nil {
 		return nil
@@ -183,8 +206,8 @@ func parseArjunJSON(data []byte) []string {
 	return sortedKeys(seen)
 }
 
-func collectJSEndpoints(runDir string) []string {
-	xn := runXNLinkFinder(runDir)
+func collectJSEndpoints(runDir string, tool config.XNLinkFinderTool) []string {
+	xn := runXNLinkFinder(runDir, tool)
 	fallback := readLines(filepath.Join(runDir, "normalized/js-route-leads.txt"))
 	seen := map[string]struct{}{}
 	for _, line := range append(xn, fallback...) {
@@ -197,7 +220,10 @@ func collectJSEndpoints(runDir string) []string {
 	return sortedKeys(seen)
 }
 
-func runXNLinkFinder(runDir string) []string {
+func runXNLinkFinder(runDir string, tool config.XNLinkFinderTool) []string {
+	if !tool.Enabled {
+		return nil
+	}
 	path := lookAny("xnLinkFinder", "xnlinkfinder")
 	if path == "" {
 		return nil

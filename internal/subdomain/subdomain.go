@@ -160,6 +160,12 @@ func runSubfinder(opts Options) error {
 	if opts.Tools.Subfinder.Recursive {
 		args = append(args, "-recursive")
 	}
+	if opts.Tools.Subfinder.Timeout > 0 {
+		args = append(args, "-timeout", strconv.Itoa(opts.Tools.Subfinder.Timeout))
+	}
+	if opts.Tools.Subfinder.MaxTime > 0 {
+		args = append(args, "-max-time", strconv.Itoa(opts.Tools.Subfinder.MaxTime))
+	}
 	args = append(args, "-o", output)
 	cmd := exec.Command(path, args...)
 	cmd.Dir = opts.Root
@@ -222,24 +228,36 @@ func probeHTTP(opts Options) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if usesRichHTTPX(opts.Tools.HTTPX) {
+		richOutput := filepath.Join(opts.RunDir, "raw/httpx-rich.jsonl")
+		_ = os.Remove(richOutput)
+		_ = runTool(opts.Root, httpxPath, richHTTPXArgs(opts.Tools.HTTPX, input, richOutput, opts.ProbeRate)...)
+	}
 	return readLines(output), nil
 }
 
 func dnsxArgs(tool config.DNSXTool, input, output string) []string {
 	args := []string{"-l", input, "-silent", "-nc"}
-	recordTypes := tool.RecordTypes
-	if len(recordTypes) == 0 {
-		recordTypes = []string{"a"}
-	}
-	for _, recordType := range recordTypes {
-		recordType = strings.ToLower(strings.TrimSpace(recordType))
-		if recordType == "" {
-			continue
+	if tool.Recon {
+		args = append(args, "-recon")
+	} else {
+		recordTypes := tool.RecordTypes
+		if len(recordTypes) == 0 {
+			recordTypes = []string{"a"}
 		}
-		args = append(args, "-"+recordType)
+		for _, recordType := range recordTypes {
+			recordType = strings.ToLower(strings.TrimSpace(recordType))
+			if recordType == "" {
+				continue
+			}
+			args = append(args, "-"+recordType)
+		}
 	}
 	if tool.Response {
 		args = append(args, "-resp")
+	}
+	if tool.Trace {
+		args = append(args, "-trace")
 	}
 	return append(args, "-o", output)
 }
@@ -264,8 +282,69 @@ func httpxArgs(tool config.HTTPXTool, input, output string, rate int) []string {
 	if tool.FollowRedirects {
 		args = append(args, "-follow-redirects")
 	}
+	if tool.Retries > 0 {
+		args = append(args, "-retries", strconv.Itoa(tool.Retries))
+	}
+	if tool.Timeout > 0 {
+		args = append(args, "-timeout", strconv.Itoa(tool.Timeout))
+	}
 	args = append(args, "-rl", strconv.Itoa(rate), "-o", output)
 	return args
+}
+
+func richHTTPXArgs(tool config.HTTPXTool, input, output string, rate int) []string {
+	args := []string{"-l", input, "-silent", "-nc", "-json"}
+	args = append(args, "-status-code", "-content-length", "-content-type", "-title", "-tech-detect")
+	if tool.WebServer {
+		args = append(args, "-web-server")
+	}
+	if tool.IP {
+		args = append(args, "-ip")
+	}
+	if tool.CNAME {
+		args = append(args, "-cname")
+	}
+	if tool.ASN {
+		args = append(args, "-asn")
+	}
+	if tool.CDN {
+		args = append(args, "-cdn")
+	}
+	if tool.ResponseTime {
+		args = append(args, "-response-time")
+	}
+	if tool.HTTP2 {
+		args = append(args, "-http2")
+	}
+	if tool.Pipeline {
+		args = append(args, "-pipeline")
+	}
+	if tool.TLSProbe {
+		args = append(args, "-tls-probe")
+	}
+	if tool.TLSGrab {
+		args = append(args, "-tls-grab")
+	}
+	if tool.ProbeAllIPs {
+		args = append(args, "-probe-all-ips")
+	}
+	if tool.FollowRedirects {
+		args = append(args, "-follow-redirects")
+	}
+	if tool.Retries > 0 {
+		args = append(args, "-retries", strconv.Itoa(tool.Retries))
+	}
+	if tool.Timeout > 0 {
+		args = append(args, "-timeout", strconv.Itoa(tool.Timeout))
+	}
+	args = append(args, "-rl", strconv.Itoa(rate), "-o", output)
+	return args
+}
+
+func usesRichHTTPX(tool config.HTTPXTool) bool {
+	return tool.WebServer || tool.IP || tool.CNAME || tool.ASN || tool.CDN ||
+		tool.ResponseTime || tool.HTTP2 || tool.Pipeline || tool.TLSProbe ||
+		tool.TLSGrab || tool.ProbeAllIPs
 }
 
 func runTool(root, path string, args ...string) error {

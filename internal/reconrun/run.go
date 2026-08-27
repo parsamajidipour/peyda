@@ -37,9 +37,11 @@ func Run(root string, cfg config.Config) error {
 	}
 
 	if _, err := hostinfo.Run(hostinfo.Options{
-		RunDir: runDir,
-		Target: cfg.Target,
-		Out:    logOut,
+		RunDir:  runDir,
+		Target:  cfg.Target,
+		Profile: cfg.Profile,
+		Tools:   cfg.Tools,
+		Out:     logOut,
 	}); err != nil {
 		return err
 	}
@@ -75,16 +77,20 @@ func Run(root string, cfg config.Config) error {
 	case config.ProfilePassive:
 	default:
 		if _, err := ports.Run(ports.Options{
-			RunDir: runDir,
-			Rate:   cfg.PortRate,
-			Out:    logOut,
+			RunDir:  runDir,
+			Profile: cfg.Profile,
+			Rate:    cfg.PortRate,
+			Tools:   cfg.Tools,
+			Out:     logOut,
 		}); err != nil {
 			fmt.Fprintf(logOut, "[peyda] port scan skipped or failed: %v\n", err)
 		}
 		if err := urlrecon.RunGau(urlrecon.Options{
-			RunDir: runDir,
-			Target: cfg.Target,
-			Out:    logOut,
+			RunDir:  runDir,
+			Target:  cfg.Target,
+			Profile: cfg.Profile,
+			Tools:   cfg.Tools,
+			Out:     logOut,
 		}); err != nil {
 			fmt.Fprintf(logOut, "[peyda] gau URL collection skipped or failed: %v\n", err)
 		}
@@ -102,9 +108,11 @@ func Run(root string, cfg config.Config) error {
 			fmt.Fprintf(logOut, "[peyda] JS recon skipped or failed: %v\n", err)
 		}
 		if _, err := urlrecon.RunPostJS(urlrecon.Options{
-			RunDir: runDir,
-			Target: cfg.Target,
-			Out:    logOut,
+			RunDir:  runDir,
+			Target:  cfg.Target,
+			Profile: cfg.Profile,
+			Tools:   cfg.Tools,
+			Out:     logOut,
 		}); err != nil {
 			fmt.Fprintf(logOut, "[peyda] URL/parameter recon skipped or failed: %v\n", err)
 		}

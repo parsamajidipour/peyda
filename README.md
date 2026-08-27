@@ -280,6 +280,8 @@ Profiles are safe presets. Use them when you do not want to tune every option ma
 | `balanced` | Normal bug bounty recon | DNS, HTTP, JS, API, cloud hints, depth-1 crawl, moderate caps |
 | `deep` | Large scopes or dedicated review windows | Exhaustive crawl caps with slower, rate-limit-aware probing |
 
+`balance` is also accepted as an alias for `balanced`.
+
 Balanced defaults:
 
 ```json
@@ -309,6 +311,24 @@ Deep defaults:
 ```
 
 Deep mode is intentionally slower. It favors broader coverage across live subdomains and deeper crawling over speed, which makes it better for long authorized recon windows.
+
+### Profile Intensity
+
+Profiles tune both workflow depth and the underlying tool flags.
+
+| Tool | `passive` | `balanced` | `deep` |
+| --- | --- | --- | --- |
+| `whois` | Standard lookup | Standard lookup | Verbose lookup with `--verbose` |
+| `dig` | Baseline DNS records | A, AAAA, MX, NS, TXT, SOA, CAA | Baseline records plus DNSSEC-oriented records, delegation trace, and NS search |
+| `subfinder` | Passive sources | `-all -recursive`, normal timeout | `-all -recursive`, longer timeout and max-time |
+| `dnsx` | Skipped | A records with responses | A, AAAA, CNAME, NS, MX, TXT, SOA, CAA with trace |
+| `httpx` | Skipped | Parse-friendly live probing | Parse-friendly live probing plus rich JSONL fingerprinting |
+| `naabu` | Skipped | Top 1000 ports with service hints | Full port range, all resolved IPs, verification, passive hints, service/version discovery |
+| `nmap` | Skipped | Service enrichment for discovered ports | Service enrichment for discovered ports |
+| `gau` | Skipped | All providers with moderate retry/timeout | All providers with higher retry/timeout and lower threading |
+| `katana` | Skipped | Scoped JavaScript-aware crawl | Headless crawl, XHR extraction, JSLuice, forms, known files, path climb, knowledge base |
+| `Arjun` | Skipped | Optional parameter probing | Optional parameter probing after URL normalization |
+| `xnLinkFinder` | Skipped | Optional JavaScript endpoint extraction | Optional JavaScript endpoint extraction after JS download |
 
 ## Configuration Model
 
@@ -409,21 +429,32 @@ Meaning:
 
 ### 5. Tune tool behavior
 
-The `tools` section controls how `peyda` calls the main ProjectDiscovery stages.
-System and optional helpers such as `whois`, `dig`, `naabu`, `nmap`, `gau`,
-`Arjun`, and `xnLinkFinder` are detected automatically and skipped gracefully if
-they are not installed.
+The `tools` section controls how `peyda` calls each recon stage. Helpers such as
+`whois`, `dig`, `naabu`, `nmap`, `gau`, `Arjun`, and `xnLinkFinder` are detected
+automatically and skipped gracefully if they are not installed.
 
 ```json
 {
   "tools": {
+    "whois": {
+      "verbose": false
+    },
+    "dig": {
+      "record_types": ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CAA"],
+      "trace": false,
+      "nssearch": false
+    },
     "subfinder": {
       "all": true,
-      "recursive": true
+      "recursive": true,
+      "timeout": 30,
+      "max_time": 10
     },
     "dnsx": {
       "record_types": ["a"],
-      "response": true
+      "response": true,
+      "recon": false,
+      "trace": false
     },
     "httpx": {
       "follow_redirects": true,
@@ -431,7 +462,35 @@ they are not installed.
       "status_code": true,
       "content_length": true,
       "content_type": true,
-      "tech_detect": true
+      "tech_detect": true,
+      "web_server": false,
+      "ip": false,
+      "cname": false,
+      "asn": false,
+      "cdn": true,
+      "response_time": false,
+      "http2": false,
+      "pipeline": false,
+      "tls_probe": false,
+      "tls_grab": false,
+      "probe_all_ips": false,
+      "retries": 1,
+      "timeout": 10
+    },
+    "naabu": {
+      "top_ports": "1000",
+      "scan_all_ips": false,
+      "service_discovery": true,
+      "service_version": false,
+      "verify": false,
+      "passive": false
+    },
+    "gau": {
+      "subs": true,
+      "providers": ["wayback", "commoncrawl", "otx", "urlscan"],
+      "retries": 2,
+      "timeout": 60,
+      "threads": 2
     },
     "katana": {
       "js_crawl": true,
@@ -442,7 +501,22 @@ they are not installed.
       "strategy": "depth-first",
       "headless": false,
       "xhr_extraction": false,
-      "display_out_scope": false
+      "display_out_scope": false,
+      "jsluice": false,
+      "form_extraction": false,
+      "tech_detect": false,
+      "path_climb": false,
+      "knowledge_base": false,
+      "store_field": "",
+      "concurrency": 10,
+      "parallelism": 10,
+      "host_rate_limit": 0
+    },
+    "arjun": {
+      "enabled": true
+    },
+    "xnlinkfinder": {
+      "enabled": true
     }
   }
 }
@@ -462,14 +536,13 @@ peyda run --config peyda.json -p 15 --crawl-duration 30s
 
 ## Tool Config Reference
 
-### Subfinder
+### WHOIS
 
 ```json
 {
   "tools": {
-    "subfinder": {
-      "all": true,
-      "recursive": true
+    "whois": {
+      "verbose": true
     }
   }
 }
@@ -478,13 +551,63 @@ peyda run --config peyda.json -p 15 --crawl-duration 30s
 Maps to:
 
 ```bash
-subfinder -d example.com -silent -all -recursive -o raw/subfinder.txt
+whois --verbose example.com
+```
+
+Deep profile enables verbose WHOIS automatically.
+
+### Dig
+
+```json
+{
+  "tools": {
+    "dig": {
+      "record_types": ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CAA", "DNSKEY", "DS"],
+      "trace": true,
+      "nssearch": true
+    }
+  }
+}
+```
+
+Maps to:
+
+```bash
+dig +short example.com A
+dig +short example.com MX
+dig +trace example.com
+dig +nssearch example.com
+```
+
+Deep profile adds DNSSEC-oriented records, delegation trace, and NS search.
+
+### Subfinder
+
+```json
+{
+  "tools": {
+    "subfinder": {
+      "all": true,
+      "recursive": true,
+      "timeout": 30,
+      "max_time": 10
+    }
+  }
+}
+```
+
+Maps to:
+
+```bash
+subfinder -d example.com -silent -all -recursive -timeout 30 -max-time 10 -o raw/subfinder.txt
 ```
 
 | Field | Effect |
 | --- | --- |
 | `all` | Enables broader passive source collection with `-all` |
 | `recursive` | Enables recursive enumeration with `-recursive` |
+| `timeout` | Per-source timeout in seconds |
+| `max_time` | Maximum enumeration time in minutes |
 
 Disable recursive enumeration:
 
@@ -505,7 +628,9 @@ Disable recursive enumeration:
   "tools": {
     "dnsx": {
       "record_types": ["a", "aaaa", "cname"],
-      "response": true
+      "response": true,
+      "recon": false,
+      "trace": false
     }
   }
 }
@@ -521,6 +646,8 @@ dnsx -l normalized/subdomains.txt -silent -nc -a -aaaa -cname -resp -o normalize
 | --- | --- |
 | `record_types` | DNS record flags to request |
 | `response` | Preserves DNS answers with `-resp` |
+| `recon` | Uses `dnsx -recon` to query all supported DNS record types |
+| `trace` | Enables DNS tracing with `-trace` |
 
 The default is only `["a"]` because most recon workflows start with A records.
 
@@ -535,7 +662,20 @@ The default is only `["a"]` because most recon workflows start with A records.
       "status_code": true,
       "content_length": true,
       "content_type": true,
-      "tech_detect": true
+      "tech_detect": true,
+      "web_server": true,
+      "ip": true,
+      "cname": true,
+      "asn": true,
+      "cdn": true,
+      "response_time": true,
+      "http2": true,
+      "pipeline": true,
+      "tls_probe": true,
+      "tls_grab": true,
+      "probe_all_ips": true,
+      "retries": 2,
+      "timeout": 20
     }
   }
 }
@@ -547,8 +687,10 @@ Maps to live probing similar to:
 httpx -l normalized/resolved-hosts.txt \
   -silent -nc \
   -title -status-code -content-length -content-type -tech-detect \
+  -web-server -ip -cname -asn -cdn -response-time \
+  -http2 -pipeline -tls-probe -tls-grab -probe-all-ips \
   -follow-redirects \
-  -rl 50 \
+  -retries 2 -timeout 20 -rl 25 \
   -o normalized/live-hosts.txt
 ```
 
@@ -560,6 +702,19 @@ httpx -l normalized/resolved-hosts.txt \
 | `content_length` | Captures response size hints |
 | `content_type` | Captures response content type |
 | `tech_detect` | Enables technology detection |
+| `web_server` | Captures server header hints with `-web-server` |
+| `ip` | Captures resolved host IPs |
+| `cname` | Captures CNAME data |
+| `asn` | Captures ASN metadata |
+| `cdn` | Captures CDN/WAF hints |
+| `response_time` | Captures response time |
+| `http2` | Probes HTTP/2 support |
+| `pipeline` | Probes HTTP pipeline support |
+| `tls_probe` | Probes TLS names |
+| `tls_grab` | Captures TLS metadata |
+| `probe_all_ips` | Probes all resolved IPs for a host |
+| `retries` | Retry count |
+| `timeout` | HTTP timeout in seconds |
 
 Turn off technology detection:
 
@@ -573,6 +728,63 @@ Turn off technology detection:
 }
 ```
 
+### Naabu
+
+```json
+{
+  "tools": {
+    "naabu": {
+      "top_ports": "full",
+      "scan_all_ips": true,
+      "service_discovery": true,
+      "service_version": true,
+      "verify": true,
+      "passive": true
+    }
+  }
+}
+```
+
+Maps to:
+
+```bash
+naabu -list normalized/resolved-hosts.txt \
+  -silent -nc -rate 25 \
+  -top-ports full -scan-all-ips \
+  -service-discovery -service-version -verify -passive \
+  -o raw/naabu.txt
+```
+
+Deep profile uses the full port set and lower rate by default.
+
+### Gau
+
+```json
+{
+  "tools": {
+    "gau": {
+      "subs": true,
+      "providers": ["wayback", "commoncrawl", "otx", "urlscan"],
+      "retries": 5,
+      "timeout": 120,
+      "threads": 1
+    }
+  }
+}
+```
+
+Maps to:
+
+```bash
+gau --subs \
+  --providers wayback,commoncrawl,otx,urlscan \
+  --retries 5 --timeout 120 --threads 1 \
+  example.com
+```
+
+Deep profile uses higher retry/timeout values and fewer threads to reduce noisy
+provider failures.
+
 ### Katana
 
 ```json
@@ -585,9 +797,17 @@ Turn off technology detection:
       "known_files": "",
       "field_scope": "rdn",
       "strategy": "depth-first",
-      "headless": false,
-      "xhr_extraction": false,
-      "display_out_scope": false
+      "headless": true,
+      "xhr_extraction": true,
+      "display_out_scope": false,
+      "jsluice": true,
+      "form_extraction": true,
+      "tech_detect": true,
+      "path_climb": true,
+      "knowledge_base": true,
+      "concurrency": 5,
+      "parallelism": 5,
+      "host_rate_limit": 2
     }
   }
 }
@@ -598,8 +818,8 @@ Maps to crawling similar to:
 ```bash
 katana -list normalized/live-urls.txt \
   -silent -nc \
-  -d 1 -ct 45s -mdp 75 -rl 10 \
-  -jc -iqp -fsu \
+  -d 5 -ct 30m -mdp 5000 -rl 5 -c 5 -p 5 -hrl 2 \
+  -jc -jsl -iqp -fsu -hl -xhr -fx -td -pc -kb \
   -fs rdn -s depth-first \
   -o raw/katana-urls.txt
 ```
@@ -615,6 +835,14 @@ katana -list normalized/live-urls.txt \
 | `headless` | Enables browser-based crawling with `-hl` |
 | `xhr_extraction` | Captures XHR URLs with `-xhr` when headless mode is enabled |
 | `display_out_scope` | Displays out-of-scope endpoints with `-do`; normalized recon output still filters to target scope |
+| `jsluice` | Enables memory-intensive JavaScript parsing with `-jsl` |
+| `form_extraction` | Extracts forms and inputs with `-fx` |
+| `tech_detect` | Enables Katana technology detection |
+| `path_climb` | Crawls parent paths with `-pc` |
+| `knowledge_base` | Enables knowledge-base classification |
+| `concurrency` | Katana fetcher concurrency |
+| `parallelism` | Number of inputs processed in parallel |
+| `host_rate_limit` | Per-host crawl rate limit |
 
 Use breadth-first crawling and known files:
 
@@ -645,6 +873,73 @@ Use headless crawling for modern apps:
 ```
 
 Headless crawling is heavier. Use it only when the target is in scope and the program allows browser automation.
+
+### Arjun
+
+```json
+{
+  "tools": {
+    "arjun": {
+      "enabled": true
+    }
+  }
+}
+```
+
+When enabled and installed, `peyda` runs Arjun after URL normalization and merges
+parameter candidates into `normalized/parameters.tsv`.
+
+### XNLinkFinder
+
+```json
+{
+  "tools": {
+    "xnlinkfinder": {
+      "enabled": true
+    }
+  }
+}
+```
+
+When enabled and installed, `peyda` runs `xnLinkFinder` against downloaded
+JavaScript files and merges endpoints into `normalized/js-endpoints.txt`.
+
+## Workflow Graph
+
+```text
+                 Target
+                   |
+          +--------+--------+
+          v                 v
+       whois               dig
+                            |
+                            v
+                        subfinder
+                            |
+                            v
+                          dnsx
+                            |
+                +-----------+-----------+
+                v                       v
+             httpx                   naabu
+                |                       |
+                v                       v
+            web_hosts                 nmap
+                |
+      +---------+---------+
+      v                   v
+   katana                 gau
+      |                   |
+      +---------+---------+
+                v
+          URL Normalizer
+                |
+                v
+             all_urls
+           +----+----+
+           v         v
+         Arjun     JS Recon
+```
 
 ## Minimal Config Examples
 

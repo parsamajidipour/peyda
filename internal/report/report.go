@@ -295,18 +295,32 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 
 	fmt.Fprintf(&b, "## Tool Settings\n\n")
 	fmt.Fprintf(&b, "| Tool | Settings |\n| --- | --- |\n")
-	fmt.Fprintf(&b, "| subfinder | `all=%t recursive=%t` |\n", cfg.Tools.Subfinder.All, cfg.Tools.Subfinder.Recursive)
-	fmt.Fprintf(&b, "| dnsx | `record_types=%s response=%t` |\n", strings.Join(cfg.Tools.DNSX.RecordTypes, ","), cfg.Tools.DNSX.Response)
-	fmt.Fprintf(&b, "| httpx | `redirects=%t title=%t status=%t length=%t type=%t tech=%t` |\n",
+	fmt.Fprintf(&b, "| subfinder | `all=%t recursive=%t timeout=%d max_time=%d` |\n", cfg.Tools.Subfinder.All, cfg.Tools.Subfinder.Recursive, cfg.Tools.Subfinder.Timeout, cfg.Tools.Subfinder.MaxTime)
+	fmt.Fprintf(&b, "| dnsx | `record_types=%s response=%t recon=%t trace=%t` |\n", strings.Join(cfg.Tools.DNSX.RecordTypes, ","), cfg.Tools.DNSX.Response, cfg.Tools.DNSX.Recon, cfg.Tools.DNSX.Trace)
+	fmt.Fprintf(&b, "| httpx | `redirects=%t title=%t status=%t length=%t type=%t tech=%t server=%t ip=%t cname=%t asn=%t cdn=%t rt=%t http2=%t pipeline=%t tls_probe=%t tls_grab=%t all_ips=%t retries=%d timeout=%d` |\n",
 		cfg.Tools.HTTPX.FollowRedirects,
 		cfg.Tools.HTTPX.Title,
 		cfg.Tools.HTTPX.StatusCode,
 		cfg.Tools.HTTPX.ContentLength,
 		cfg.Tools.HTTPX.ContentType,
 		cfg.Tools.HTTPX.TechDetect,
+		cfg.Tools.HTTPX.WebServer,
+		cfg.Tools.HTTPX.IP,
+		cfg.Tools.HTTPX.CNAME,
+		cfg.Tools.HTTPX.ASN,
+		cfg.Tools.HTTPX.CDN,
+		cfg.Tools.HTTPX.ResponseTime,
+		cfg.Tools.HTTPX.HTTP2,
+		cfg.Tools.HTTPX.Pipeline,
+		cfg.Tools.HTTPX.TLSProbe,
+		cfg.Tools.HTTPX.TLSGrab,
+		cfg.Tools.HTTPX.ProbeAllIPs,
+		cfg.Tools.HTTPX.Retries,
+		cfg.Tools.HTTPX.Timeout,
 	)
-	fmt.Fprintf(&b, "| katana | `js=%t iqp=%t fsu=%t known_files=%q field_scope=%q strategy=%q headless=%t xhr=%t display_out_scope=%t` |\n\n",
+	fmt.Fprintf(&b, "| katana | `js=%t jsluice=%t iqp=%t fsu=%t known_files=%q field_scope=%q strategy=%q headless=%t xhr=%t forms=%t tech=%t path_climb=%t kb=%t c=%d p=%d hrl=%d display_out_scope=%t` |\n\n",
 		cfg.Tools.Katana.JSCrawl,
+		cfg.Tools.Katana.JSLuice,
 		cfg.Tools.Katana.IgnoreQueryParams,
 		cfg.Tools.Katana.FilterSimilar,
 		cfg.Tools.Katana.KnownFiles,
@@ -314,6 +328,13 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 		cfg.Tools.Katana.Strategy,
 		cfg.Tools.Katana.Headless,
 		cfg.Tools.Katana.XHRExtraction,
+		cfg.Tools.Katana.FormExtraction,
+		cfg.Tools.Katana.TechDetect,
+		cfg.Tools.Katana.PathClimb,
+		cfg.Tools.Katana.KnowledgeBase,
+		cfg.Tools.Katana.Concurrency,
+		cfg.Tools.Katana.Parallelism,
+		cfg.Tools.Katana.HostRateLimit,
 		cfg.Tools.Katana.DisplayOutScope,
 	)
 
@@ -616,18 +637,32 @@ func writeCounts(b *strings.Builder, runDir string) {
 func writeToolConfig(b *strings.Builder, tools config.Tools) {
 	fmt.Fprintf(b, "TOOL CONFIGURATION\n")
 	fmt.Fprintf(b, "------------------\n")
-	fmt.Fprintf(b, "subfinder : all=%t recursive=%t\n", tools.Subfinder.All, tools.Subfinder.Recursive)
-	fmt.Fprintf(b, "dnsx      : record_types=%s response=%t\n", strings.Join(tools.DNSX.RecordTypes, ","), tools.DNSX.Response)
-	fmt.Fprintf(b, "httpx     : redirects=%t title=%t status=%t length=%t type=%t tech=%t\n",
+	fmt.Fprintf(b, "subfinder : all=%t recursive=%t timeout=%d max_time=%d\n", tools.Subfinder.All, tools.Subfinder.Recursive, tools.Subfinder.Timeout, tools.Subfinder.MaxTime)
+	fmt.Fprintf(b, "dnsx      : record_types=%s response=%t recon=%t trace=%t\n", strings.Join(tools.DNSX.RecordTypes, ","), tools.DNSX.Response, tools.DNSX.Recon, tools.DNSX.Trace)
+	fmt.Fprintf(b, "httpx     : redirects=%t title=%t status=%t length=%t type=%t tech=%t server=%t ip=%t cname=%t asn=%t cdn=%t rt=%t http2=%t pipeline=%t tls_probe=%t tls_grab=%t all_ips=%t retries=%d timeout=%d\n",
 		tools.HTTPX.FollowRedirects,
 		tools.HTTPX.Title,
 		tools.HTTPX.StatusCode,
 		tools.HTTPX.ContentLength,
 		tools.HTTPX.ContentType,
 		tools.HTTPX.TechDetect,
+		tools.HTTPX.WebServer,
+		tools.HTTPX.IP,
+		tools.HTTPX.CNAME,
+		tools.HTTPX.ASN,
+		tools.HTTPX.CDN,
+		tools.HTTPX.ResponseTime,
+		tools.HTTPX.HTTP2,
+		tools.HTTPX.Pipeline,
+		tools.HTTPX.TLSProbe,
+		tools.HTTPX.TLSGrab,
+		tools.HTTPX.ProbeAllIPs,
+		tools.HTTPX.Retries,
+		tools.HTTPX.Timeout,
 	)
-	fmt.Fprintf(b, "katana    : js=%t iqp=%t fsu=%t known_files=%q field_scope=%q strategy=%q headless=%t xhr=%t display_out_scope=%t\n\n",
+	fmt.Fprintf(b, "katana    : js=%t jsluice=%t iqp=%t fsu=%t known_files=%q field_scope=%q strategy=%q headless=%t xhr=%t forms=%t tech=%t path_climb=%t kb=%t c=%d p=%d hrl=%d display_out_scope=%t\n\n",
 		tools.Katana.JSCrawl,
+		tools.Katana.JSLuice,
 		tools.Katana.IgnoreQueryParams,
 		tools.Katana.FilterSimilar,
 		tools.Katana.KnownFiles,
@@ -635,6 +670,13 @@ func writeToolConfig(b *strings.Builder, tools config.Tools) {
 		tools.Katana.Strategy,
 		tools.Katana.Headless,
 		tools.Katana.XHRExtraction,
+		tools.Katana.FormExtraction,
+		tools.Katana.TechDetect,
+		tools.Katana.PathClimb,
+		tools.Katana.KnowledgeBase,
+		tools.Katana.Concurrency,
+		tools.Katana.Parallelism,
+		tools.Katana.HostRateLimit,
 		tools.Katana.DisplayOutScope,
 	)
 }

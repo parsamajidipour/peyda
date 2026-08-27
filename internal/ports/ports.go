@@ -12,13 +12,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/parsamajidipour/peyda/internal/config"
 	"github.com/parsamajidipour/peyda/internal/deps"
 )
 
 type Options struct {
-	RunDir string
-	Rate   int
-	Out    io.Writer
+	RunDir  string
+	Profile string
+	Rate    int
+	Tools   config.Tools
+	Out     io.Writer
 }
 
 type Result struct {
@@ -53,7 +56,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	fmt.Fprintf(opts.Out, "[port] Scanning open ports with naabu...\n")
-	records := runNaabu(input, rawNaabu, opts.Rate)
+	records := runNaabu(input, rawNaabu, opts.Tools.Naabu, opts.Rate)
 
 	fmt.Fprintf(opts.Out, "[port] Enriching services with nmap...\n")
 	records = enrichWithNmap(opts.RunDir, records)
@@ -64,7 +67,7 @@ func Run(opts Options) (Result, error) {
 	return Result{OpenPorts: len(records)}, nil
 }
 
-func runNaabu(input, output string, rate int) []PortRecord {
+func runNaabu(input, output string, tool config.NaabuTool, rate int) []PortRecord {
 	path, err := deps.LookPath("naabu")
 	if err != nil {
 		_ = writeLines(output, nil)
@@ -72,6 +75,24 @@ func runNaabu(input, output string, rate int) []PortRecord {
 	}
 	_ = os.Remove(output)
 	args := []string{"-list", input, "-silent", "-nc", "-rate", strconv.Itoa(rate), "-o", output}
+	if tool.TopPorts != "" {
+		args = append(args, "-top-ports", tool.TopPorts)
+	}
+	if tool.ScanAllIPs {
+		args = append(args, "-scan-all-ips")
+	}
+	if tool.ServiceDiscovery {
+		args = append(args, "-service-discovery")
+	}
+	if tool.ServiceVersion {
+		args = append(args, "-service-version")
+	}
+	if tool.Verify {
+		args = append(args, "-verify")
+	}
+	if tool.Passive {
+		args = append(args, "-passive")
+	}
 	cmd := exec.Command(path, args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard

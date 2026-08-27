@@ -98,7 +98,7 @@ func runCommand(args []string) error {
 	date := fs.String("d", "", "UTC run date")
 	outputFile := fs.String("o", "", "write CLI output to file")
 	outputRoot := fs.String("output-dir", "", "artifact output root; defaults to ./runs in the current directory")
-	profile := fs.String("profile", "", "depth profile: passive, balanced, deep")
+	profile := fs.String("profile", "", "depth profile: passive, balanced, deep; balance is accepted as an alias")
 	configPath := fs.String("config", "", "optional JSON config file")
 	excluded := fs.String("e", "", "excluded-host file")
 	probeRate := fs.Int("p", 0, "HTTP probe rate limit")

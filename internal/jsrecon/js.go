@@ -227,8 +227,20 @@ func katanaArgs(tool config.KatanaTool, input, output string, opts Options) []st
 		"-mdp", strconv.Itoa(opts.MaxDomainPages),
 		"-rl", strconv.Itoa(opts.CrawlRate),
 	}
+	if tool.Concurrency > 0 {
+		args = append(args, "-c", strconv.Itoa(tool.Concurrency))
+	}
+	if tool.Parallelism > 0 {
+		args = append(args, "-p", strconv.Itoa(tool.Parallelism))
+	}
+	if tool.HostRateLimit > 0 {
+		args = append(args, "-hrl", strconv.Itoa(tool.HostRateLimit))
+	}
 	if tool.JSCrawl {
 		args = append(args, "-jc")
+	}
+	if tool.JSLuice {
+		args = append(args, "-jsl")
 	}
 	if tool.IgnoreQueryParams {
 		args = append(args, "-iqp")
@@ -250,6 +262,21 @@ func katanaArgs(tool config.KatanaTool, input, output string, opts Options) []st
 	}
 	if tool.XHRExtraction {
 		args = append(args, "-xhr")
+	}
+	if tool.FormExtraction {
+		args = append(args, "-fx")
+	}
+	if tool.TechDetect {
+		args = append(args, "-td")
+	}
+	if tool.PathClimb {
+		args = append(args, "-pc")
+	}
+	if tool.KnowledgeBase {
+		args = append(args, "-kb")
+	}
+	if tool.StoreField != "" {
+		args = append(args, "-sf", tool.StoreField)
 	}
 	if tool.DisplayOutScope {
 		args = append(args, "-do")

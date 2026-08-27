@@ -10,13 +10,16 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/parsamajidipour/peyda/internal/config"
 	"github.com/parsamajidipour/peyda/internal/deps"
 )
 
 type Options struct {
-	RunDir string
-	Target string
-	Out    io.Writer
+	RunDir  string
+	Target  string
+	Profile string
+	Tools   config.Tools
+	Out     io.Writer
 }
 
 type Result struct {
@@ -33,15 +36,15 @@ func Run(opts Options) (Result, error) {
 	}
 
 	fmt.Fprintf(opts.Out, "[whois] Collecting registration metadata...\n")
-	whoisFields := collectWHOIS(opts.RunDir, opts.Target)
+	whoisFields := collectWHOIS(opts.RunDir, opts.Target, opts.Tools.WHOIS)
 
 	fmt.Fprintf(opts.Out, "[dns] Querying DNS records with dig...\n")
-	dnsRecords := collectDNS(opts.RunDir, opts.Target)
+	dnsRecords := collectDNS(opts.RunDir, opts.Target, opts.Tools.Dig)
 
 	return Result{WHOISFields: whoisFields, DNSRecords: dnsRecords}, nil
 }
 
-func collectWHOIS(runDir, target string) int {
+func collectWHOIS(runDir, target string, tool config.WHOISTool) int {
 	output := filepath.Join(runDir, "raw/whois.txt")
 	tsv := filepath.Join(runDir, "normalized/whois.tsv")
 	lines := []string{"key\tvalue"}
@@ -51,7 +54,12 @@ func collectWHOIS(runDir, target string) int {
 		_ = writeLines(tsv, lines)
 		return 0
 	}
-	cmd := exec.Command(path, target)
+	args := []string{}
+	if tool.Verbose {
+		args = append(args, "--verbose")
+	}
+	args = append(args, target)
+	cmd := exec.Command(path, args...)
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	data, err := cmd.Output()
 	if err != nil {
@@ -104,7 +112,7 @@ func parseWHOIS(data string) map[string]string {
 	return fields
 }
 
-func collectDNS(runDir, target string) int {
+func collectDNS(runDir, target string, tool config.DigTool) int {
 	tsv := filepath.Join(runDir, "normalized/dns-records.tsv")
 	lines := []string{"type\tname\tvalue"}
 	path, err := deps.LookPath("dig")
@@ -113,7 +121,15 @@ func collectDNS(runDir, target string) int {
 		return 0
 	}
 
-	for _, recordType := range []string{"A", "AAAA", "MX", "NS", "TXT"} {
+	recordTypes := tool.RecordTypes
+	if len(recordTypes) == 0 {
+		recordTypes = []string{"A", "AAAA", "MX", "NS", "TXT", "SOA", "CAA"}
+	}
+	for _, recordType := range recordTypes {
+		recordType = strings.ToUpper(strings.TrimSpace(recordType))
+		if recordType == "" {
+			continue
+		}
 		cmd := exec.Command(path, "+short", target, recordType)
 		cmd.Env = deps.WithGoBinFirst(os.Environ())
 		data, err := cmd.Output()
@@ -125,14 +141,30 @@ func collectDNS(runDir, target string) int {
 		scanner := bufio.NewScanner(strings.NewReader(string(data)))
 		for scanner.Scan() {
 			value := strings.Trim(strings.TrimSpace(scanner.Text()), `"`)
-			if value == "" {
+			if value == "" || strings.HasPrefix(value, ";") || strings.Contains(value, "communications error") {
 				continue
 			}
 			lines = append(lines, strings.Join([]string{recordType, target, sanitize(value)}, "\t"))
 		}
 	}
+	if tool.Trace {
+		writeDigRaw(path, runDir, "trace", "+trace", target)
+	}
+	if tool.NSSearch {
+		writeDigRaw(path, runDir, "nssearch", "+nssearch", target)
+	}
 	_ = writeLines(tsv, lines)
 	return max(0, len(lines)-1)
+}
+
+func writeDigRaw(path, runDir, name string, args ...string) {
+	cmd := exec.Command(path, args...)
+	cmd.Env = deps.WithGoBinFirst(os.Environ())
+	data, err := cmd.Output()
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(runDir, "raw", "dig-"+name+".txt"), data, 0o644)
 }
 
 func ensureDirs(runDir string) error {
