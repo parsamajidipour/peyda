@@ -78,6 +78,9 @@ func runCommand(args []string) error {
 	configPath := fs.String("config", "", "optional JSON config file")
 	excluded := fs.String("e", "", "excluded-host file")
 	probeRate := fs.Int("p", 0, "HTTP probe rate limit")
+	crawlDepth := fs.Int("crawl-depth", 0, "maximum crawler depth")
+	crawlDuration := fs.String("crawl-duration", "", "maximum crawler duration, e.g. 45s or 5m")
+	maxDomainPages := fs.Int("max-domain-pages", 0, "maximum crawled pages per domain")
 	skipDeps := fs.Bool("skip-deps", false, "skip dependency preparation")
 	noJSONL := fs.Bool("no-jsonl", false, "disable normalized/recon-events.jsonl")
 	if err := fs.Parse(args); err != nil {
@@ -105,6 +108,15 @@ func runCommand(args []string) error {
 	}
 	if *probeRate > 0 {
 		cfg.ProbeRate = *probeRate
+	}
+	if *crawlDepth > 0 {
+		cfg.CrawlDepth = *crawlDepth
+	}
+	if *crawlDuration != "" {
+		cfg.CrawlDuration = *crawlDuration
+	}
+	if *maxDomainPages > 0 {
+		cfg.MaxDomainPages = *maxDomainPages
 	}
 	if *skipDeps {
 		cfg.SkipDeps = true

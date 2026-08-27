@@ -14,16 +14,19 @@ const (
 )
 
 type Config struct {
-	Target       string `json:"target"`
-	RunDate      string `json:"run_date"`
-	OutputRoot   string `json:"output_root"`
-	Profile      string `json:"profile"`
-	ProbeRate    int    `json:"probe_rate"`
-	CrawlRate    int    `json:"crawl_rate"`
-	APIRate      int    `json:"api_rate"`
-	ExcludedFile string `json:"excluded_file"`
-	SkipDeps     bool   `json:"skip_deps"`
-	WriteJSONL   bool   `json:"write_jsonl"`
+	Target         string `json:"target"`
+	RunDate        string `json:"run_date"`
+	OutputRoot     string `json:"output_root"`
+	Profile        string `json:"profile"`
+	ProbeRate      int    `json:"probe_rate"`
+	CrawlRate      int    `json:"crawl_rate"`
+	CrawlDepth     int    `json:"crawl_depth"`
+	CrawlDuration  string `json:"crawl_duration"`
+	MaxDomainPages int    `json:"max_domain_pages"`
+	APIRate        int    `json:"api_rate"`
+	ExcludedFile   string `json:"excluded_file"`
+	SkipDeps       bool   `json:"skip_deps"`
+	WriteJSONL     bool   `json:"write_jsonl"`
 }
 
 func Load(path string) (Config, error) {
@@ -64,7 +67,16 @@ func (c *Config) ApplyProfileDefaults() error {
 			c.ProbeRate = 50
 		}
 		if c.CrawlRate == 0 {
-			c.CrawlRate = 20
+			c.CrawlRate = 10
+		}
+		if c.CrawlDepth == 0 {
+			c.CrawlDepth = 1
+		}
+		if c.CrawlDuration == "" {
+			c.CrawlDuration = "45s"
+		}
+		if c.MaxDomainPages == 0 {
+			c.MaxDomainPages = 75
 		}
 		if c.APIRate == 0 {
 			c.APIRate = 20
@@ -75,6 +87,15 @@ func (c *Config) ApplyProfileDefaults() error {
 		}
 		if c.CrawlRate == 0 {
 			c.CrawlRate = 50
+		}
+		if c.CrawlDepth == 0 {
+			c.CrawlDepth = 3
+		}
+		if c.CrawlDuration == "" {
+			c.CrawlDuration = "5m"
+		}
+		if c.MaxDomainPages == 0 {
+			c.MaxDomainPages = 500
 		}
 		if c.APIRate == 0 {
 			c.APIRate = 50
@@ -87,13 +108,16 @@ func (c *Config) ApplyProfileDefaults() error {
 
 func Example() Config {
 	return Config{
-		Target:     "example.com",
-		OutputRoot: "runs",
-		Profile:    ProfileBalanced,
-		ProbeRate:  50,
-		CrawlRate:  20,
-		APIRate:    20,
-		WriteJSONL: true,
+		Target:         "example.com",
+		OutputRoot:     "runs",
+		Profile:        ProfileBalanced,
+		ProbeRate:      50,
+		CrawlRate:      10,
+		CrawlDepth:     1,
+		CrawlDuration:  "45s",
+		MaxDomainPages: 75,
+		APIRate:        20,
+		WriteJSONL:     true,
 	}
 }
 

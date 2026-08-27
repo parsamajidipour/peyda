@@ -11,7 +11,7 @@ test:
 	if compgen -G "scripts/*.sh" > /dev/null; then bash -n scripts/*.sh; fi
 
 lint:
-	npx markdownlint-cli2 "**/*.md"
+	npx markdownlint-cli2 "**/*.md" "#runs/**" "#.cache/**"
 
 check: test lint
 	git diff --check

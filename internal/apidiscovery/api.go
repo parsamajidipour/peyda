@@ -263,6 +263,7 @@ func probeDocs(opts Options) error {
 		httpxPath,
 		"-l", input,
 		"-silent",
+		"-nc",
 		"-status-code",
 		"-title",
 		"-content-type",
@@ -272,7 +273,7 @@ func probeDocs(opts Options) error {
 		"-o", output,
 	)
 	cmd.Dir = opts.Root
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	if err := cmd.Run(); err != nil {

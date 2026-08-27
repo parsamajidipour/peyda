@@ -55,7 +55,15 @@ func Run(root string, cfg config.Config) error {
 	switch cfg.Profile {
 	case config.ProfilePassive:
 	default:
-		if _, err := jsrecon.Run(jsrecon.Options{Root: root, RunDir: runDir, CrawlRate: cfg.CrawlRate}); err != nil {
+		if _, err := jsrecon.Run(jsrecon.Options{
+			Root:           root,
+			RunDir:         runDir,
+			Target:         cfg.Target,
+			CrawlRate:      cfg.CrawlRate,
+			CrawlDepth:     cfg.CrawlDepth,
+			CrawlDuration:  cfg.CrawlDuration,
+			MaxDomainPages: cfg.MaxDomainPages,
+		}); err != nil {
 			fmt.Fprintf(os.Stdout, "[reconx] JS recon skipped or failed: %v\n", err)
 		}
 		if _, err := apidiscovery.Run(apidiscovery.Options{Root: root, RunDir: runDir, ProbeRate: cfg.APIRate}); err != nil {
@@ -118,8 +126,17 @@ func Init(cfg config.Config) (string, error) {
 		return "", err
 	}
 
-	meta := fmt.Sprintf("target=%s\nrun_date=%s\nprofile=%s\ncreated_utc=%s\noutput_root=%s\n",
-		safeTarget, runDate, cfg.Profile, time.Now().UTC().Format(time.RFC3339), outputRoot)
+	meta := fmt.Sprintf(
+		"target=%s\nrun_date=%s\nprofile=%s\ncreated_utc=%s\noutput_root=%s\ncrawl_depth=%d\ncrawl_duration=%s\nmax_domain_pages=%d\n",
+		safeTarget,
+		runDate,
+		cfg.Profile,
+		time.Now().UTC().Format(time.RFC3339),
+		outputRoot,
+		cfg.CrawlDepth,
+		cfg.CrawlDuration,
+		cfg.MaxDomainPages,
+	)
 	if err := os.WriteFile(filepath.Join(runDir, "notes/run-metadata.txt"), []byte(meta), 0o644); err != nil {
 		return "", err
 	}

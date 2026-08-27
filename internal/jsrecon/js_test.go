@@ -56,3 +56,39 @@ func TestExtractFromRunRedactsSecretsAndFindsRoutes(t *testing.T) {
 		t.Fatalf("interesting line was not redacted: %v", interesting)
 	}
 }
+
+func TestFilterInScopeURLsDropsExternalAndEscapedNoise(t *testing.T) {
+	got := filterInScopeURLs([]string{
+		"https://app.example.com/_next/static/app.js",
+		"https://example.com/api/v1/users",
+		"https://static.example.com/image.png%5C",
+		"https://www.facebook.com/example",
+		"http://www.w3.org/2000/svg%5C",
+		"not-a-url",
+	}, "example.com")
+
+	want := strings.Join([]string{
+		"https://app.example.com/_next/static/app.js",
+		"https://example.com/api/v1/users",
+	}, "\n")
+	if strings.Join(got, "\n") != want {
+		t.Fatalf("scoped urls = %v", got)
+	}
+}
+
+func TestFilterRoutesInScopeKeepsRelativeAndTargetRoutes(t *testing.T) {
+	got := filterRoutesInScope([]string{
+		"/api/v1/users/me",
+		"https://api.example.com/v2/accounts",
+		"https://github.com/example/project/blob/v3/LICENSE",
+		"https://nextjs.org/docs/app/api-reference/functions/use-search-params",
+	}, "example.com")
+
+	want := strings.Join([]string{
+		"/api/v1/users/me",
+		"https://api.example.com/v2/accounts",
+	}, "\n")
+	if strings.Join(got, "\n") != want {
+		t.Fatalf("scoped routes = %v", got)
+	}
+}

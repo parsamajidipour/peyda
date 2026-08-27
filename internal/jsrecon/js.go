@@ -19,9 +19,13 @@ import (
 )
 
 type Options struct {
-	Root      string
-	RunDir    string
-	CrawlRate int
+	Root           string
+	RunDir         string
+	Target         string
+	CrawlRate      int
+	CrawlDepth     int
+	CrawlDuration  string
+	MaxDomainPages int
 }
 
 type Result struct {
@@ -51,8 +55,28 @@ func Run(opts Options) (Result, error) {
 	if opts.CrawlRate == 0 {
 		opts.CrawlRate = 20
 	}
+	if opts.CrawlDepth == 0 {
+		opts.CrawlDepth = 1
+	}
+	if opts.CrawlDuration == "" {
+		opts.CrawlDuration = "45s"
+	}
+	if opts.MaxDomainPages == 0 {
+		opts.MaxDomainPages = 75
+	}
 	if err := ensureDirs(opts.RunDir); err != nil {
 		return Result{}, err
+	}
+
+	logPath := filepath.Join(opts.RunDir, "notes/js-recon.log")
+	logFile, err := os.Create(logPath)
+	if err != nil {
+		return Result{}, err
+	}
+	defer logFile.Close()
+	log := func(format string, args ...any) {
+		fmt.Printf(format+"\n", args...)
+		fmt.Fprintf(logFile, format+"\n", args...)
 	}
 
 	liveHosts := filepath.Join(opts.RunDir, "normalized/live-hosts.txt")
@@ -65,26 +89,34 @@ func Run(opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	fmt.Println("[js] Crawling live URLs with katana...")
+	log("[js] Crawling live URLs with katana...")
+	log("[js] crawl_rate=%d crawl_depth=%d crawl_duration=%s max_domain_pages=%d",
+		opts.CrawlRate, opts.CrawlDepth, opts.CrawlDuration, opts.MaxDomainPages)
 	if err := runKatana(opts); err != nil {
 		return Result{}, err
 	}
+	allCrawled, scopedCrawled, err := normalizeKatanaOutput(opts.RunDir, opts.Target)
+	if err != nil {
+		return Result{}, err
+	}
+	log("[js] katana_urls=%d scoped_urls=%d", len(allCrawled), len(scopedCrawled))
 
 	crawled := readLines(filepath.Join(opts.RunDir, "raw/katana-urls.txt"))
-	fmt.Println("[js] Extracting JavaScript URLs...")
+	log("[js] Extracting JavaScript URLs...")
 	jsFiles := ExtractJSURLs(crawled, liveURLs)
 	if err := writeLines(filepath.Join(opts.RunDir, "normalized/js-files.txt"), jsFiles); err != nil {
 		return Result{}, err
 	}
 
-	fmt.Println("[js] Downloading JavaScript files...")
+	log("[js] Downloading JavaScript files...")
 	downloaded, err := downloadJavaScript(opts.RunDir, jsFiles)
 	if err != nil {
 		return Result{}, err
 	}
 
-	fmt.Println("[js] Extracting routes and high-signal lines...")
+	log("[js] Extracting routes and high-signal lines...")
 	interesting, routes, sourceMaps := extractFromRun(opts.RunDir, crawled)
+	routes = filterRoutesInScope(routes, opts.Target)
 	if err := writeLines(filepath.Join(opts.RunDir, "normalized/js-interesting-lines.txt"), interesting); err != nil {
 		return Result{}, err
 	}
@@ -106,7 +138,7 @@ func Run(opts Options) (Result, error) {
 		InterestingLines: len(interesting),
 		RouteLeads:       len(routes),
 	}
-	fmt.Printf("[js] live_urls=%d crawled=%d js_files=%d downloaded=%d routes=%d\n",
+	log("[js] live_urls=%d crawled=%d js_files=%d downloaded=%d routes=%d",
 		result.LiveURLs, result.CrawledURLs, result.JavaScriptFiles, result.DownloadedFiles, result.RouteLeads)
 	return result, nil
 }
@@ -163,11 +195,17 @@ func runKatana(opts Options) error {
 		"-list", filepath.Join(opts.RunDir, "normalized/live-urls.txt"),
 		"-jc",
 		"-silent",
+		"-nc",
+		"-d", strconv.Itoa(opts.CrawlDepth),
+		"-ct", opts.CrawlDuration,
+		"-mdp", strconv.Itoa(opts.MaxDomainPages),
+		"-iqp",
+		"-fsu",
 		"-rl", strconv.Itoa(opts.CrawlRate),
 		"-o", output,
 	)
 	cmd.Dir = opts.Root
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	if err := cmd.Run(); err != nil {
@@ -178,6 +216,77 @@ func runKatana(opts Options) error {
 		return err
 	}
 	return file.Close()
+}
+
+func normalizeKatanaOutput(runDir, target string) ([]string, []string, error) {
+	output := filepath.Join(runDir, "raw/katana-urls.txt")
+	all := unique(readLines(output))
+	if err := writeLines(filepath.Join(runDir, "raw/katana-urls.all.txt"), all); err != nil {
+		return nil, nil, err
+	}
+
+	scoped := filterInScopeURLs(all, target)
+	if err := writeLines(output, scoped); err != nil {
+		return nil, nil, err
+	}
+	return all, scoped, nil
+}
+
+func filterInScopeURLs(lines []string, target string) []string {
+	target = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(target)), "*.")
+	target = strings.TrimSuffix(target, ".")
+	if target == "" {
+		return unique(lines)
+	}
+
+	var scoped []string
+	for _, line := range lines {
+		cleaned := strings.TrimSpace(line)
+		if cleaned == "" || strings.Contains(cleaned, `\`) || strings.Contains(strings.ToLower(cleaned), "%5c") {
+			continue
+		}
+		parsed, err := url.Parse(cleaned)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			continue
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" && parsed.Scheme != "wss" {
+			continue
+		}
+		host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+		if host == target || strings.HasSuffix(host, "."+target) {
+			scoped = append(scoped, cleaned)
+		}
+	}
+	return unique(scoped)
+}
+
+func filterRoutesInScope(routes []string, target string) []string {
+	target = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(target)), "*.")
+	target = strings.TrimSuffix(target, ".")
+	if target == "" {
+		return unique(routes)
+	}
+
+	var scoped []string
+	for _, route := range routes {
+		route = strings.TrimSpace(route)
+		if route == "" {
+			continue
+		}
+		if strings.HasPrefix(route, "/") {
+			scoped = append(scoped, route)
+			continue
+		}
+		parsed, err := url.Parse(route)
+		if err != nil || parsed.Host == "" {
+			continue
+		}
+		host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+		if host == target || strings.HasSuffix(host, "."+target) {
+			scoped = append(scoped, route)
+		}
+	}
+	return unique(scoped)
 }
 
 func downloadJavaScript(runDir string, urls []string) (int, error) {

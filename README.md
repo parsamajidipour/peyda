@@ -38,8 +38,8 @@ Depth profiles:
 | Profile | Behavior |
 | --- | --- |
 | `passive` | Passive subdomain collection and normalization only; no active dependency setup |
-| `balanced` | Subdomains, DNS, HTTP probing, JS, API, cloud leads |
-| `deep` | Balanced workflow with higher crawl and probe limits |
+| `balanced` | Subdomains, DNS, HTTP probing, JS, API, cloud leads with a capped depth-1 crawl |
+| `deep` | Balanced workflow with higher crawl and probe limits, depth-3 crawl, and larger page caps |
 
 Example:
 

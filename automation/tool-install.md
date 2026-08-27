@@ -14,10 +14,9 @@ bin/reconx deps
 This command:
 
 - prefers `$HOME/go/bin` first in `PATH`
-- installs missing system tools when `apt-get` is available
 - installs or refreshes ProjectDiscovery tools with `go install @latest`
 - detects the common Python `httpx` / ProjectDiscovery `httpx` name collision
-- treats `rg` as optional because core parsing now runs natively in Go
+- reports optional helper tools such as `rg` without blocking the recon run
 
 Force-update Go-based recon tools:
 
@@ -66,6 +65,9 @@ gitleaks version
 ```
 
 ## Useful System Packages
+
+These are optional for manual workflows and local development. `reconx` core
+logic does not require them at runtime.
 
 ```bash
 sudo apt update

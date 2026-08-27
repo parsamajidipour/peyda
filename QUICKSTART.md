@@ -60,7 +60,10 @@ Config fields:
   "output_root": "runs",
   "profile": "balanced",
   "probe_rate": 50,
-  "crawl_rate": 20,
+  "crawl_rate": 10,
+  "crawl_depth": 1,
+  "crawl_duration": "45s",
+  "max_domain_pages": 75,
   "api_rate": 20,
   "excluded_file": "",
   "skip_deps": false,
@@ -109,8 +112,8 @@ column -t -s $'\t' "$latest_run/normalized/asset-scores.tsv" | less -S
 | Profile | Best for | Active probing |
 | --- | --- | --- |
 | `passive` | Safe first pass, scope expansion, asset inventory | No DNS or HTTP probing |
-| `balanced` | Normal bug bounty recon | DNS, HTTP, JS, API, cloud hints |
-| `deep` | Larger scopes or dedicated review windows | Higher probe and crawl limits |
+| `balanced` | Normal bug bounty recon | DNS, HTTP, JS, API, cloud hints; depth 1 crawl capped to 75 pages/domain |
+| `deep` | Larger scopes or dedicated review windows | Higher probe and crawl limits; depth 3 crawl capped to 500 pages/domain |
 
 ## Troubleshooting
 

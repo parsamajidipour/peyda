@@ -60,7 +60,7 @@ var goTools = []goTool{
 	{"katana", "github.com/projectdiscovery/katana/cmd/katana@latest"},
 }
 
-var requiredSystemTools = []string{"curl", "jq", "git"}
+var requiredSystemTools []string
 var optionalSystemTools = []string{"rg"}
 
 func (m Manager) Run(mode Mode) error {
@@ -170,15 +170,11 @@ func (m Manager) installSystemPackages() error {
 	}
 
 	var packages []string
-	for _, name := range append(requiredSystemTools, optionalSystemTools...) {
+	for _, name := range requiredSystemTools {
 		if _, err := LookPath(name); err == nil {
 			continue
 		}
-		if name == "rg" {
-			packages = append(packages, "ripgrep")
-		} else {
-			packages = append(packages, name)
-		}
+		packages = append(packages, aptPackageName(name))
 	}
 	if len(packages) == 0 {
 		return nil
@@ -202,6 +198,13 @@ func (m Manager) installSystemPackages() error {
 		args = append([]string{"sudo"}, args...)
 	}
 	return m.exec(args[0], args[1:]...)
+}
+
+func aptPackageName(name string) string {
+	if name == "rg" {
+		return "ripgrep"
+	}
+	return name
 }
 
 func (m Manager) installGoTool(tool goTool) error {

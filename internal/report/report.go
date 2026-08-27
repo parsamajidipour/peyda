@@ -57,6 +57,9 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 	fmt.Fprintf(&b, "| Profile | `%s` |\n", cfg.Profile)
 	fmt.Fprintf(&b, "| Probe rate | `%d` |\n", cfg.ProbeRate)
 	fmt.Fprintf(&b, "| Crawl rate | `%d` |\n", cfg.CrawlRate)
+	fmt.Fprintf(&b, "| Crawl depth | `%d` |\n", cfg.CrawlDepth)
+	fmt.Fprintf(&b, "| Crawl duration | `%s` |\n", cfg.CrawlDuration)
+	fmt.Fprintf(&b, "| Max domain pages | `%d` |\n", cfg.MaxDomainPages)
 	fmt.Fprintf(&b, "| API probe rate | `%d` |\n\n", cfg.APIRate)
 
 	counts := map[string]int{
