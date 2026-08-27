@@ -7,7 +7,7 @@ the data produced by the tool.
 ## Current CLI
 
 ```bash
-go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+go install ./cmd/reconx
 reconx run -t example.com --profile balanced -p 50
 ```
 

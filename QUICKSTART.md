@@ -5,7 +5,9 @@ Replace `example.com` with a domain that is explicitly in scope.
 ## 1. Install
 
 ```bash
-go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+git clone https://github.com/parsamajidipour/reconx.git
+cd reconx
+go install ./cmd/reconx
 ```
 
 Add Go's binary directory to your `PATH` if needed:

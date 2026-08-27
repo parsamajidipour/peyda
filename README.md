@@ -60,10 +60,12 @@ No version is printed in the banner for now.
 
 ## Install
 
-Install `reconx` with Go:
+Install `reconx` from the repository:
 
 ```bash
-go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+git clone https://github.com/parsamajidipour/reconx.git
+cd reconx
+go install ./cmd/reconx
 ```
 
 Make sure Go's binary directory is in your `PATH`:
@@ -85,6 +87,12 @@ Verify the install:
 ```bash
 which reconx
 reconx help
+```
+
+You can also install directly from GitHub after the repository is public and pushed:
+
+```bash
+go install github.com/parsamajidipour/reconx/cmd/reconx@latest
 ```
 
 Check dependencies:

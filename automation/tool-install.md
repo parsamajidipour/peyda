@@ -4,10 +4,12 @@ Install only what you need. These commands are examples for a Linux workstation 
 
 ## Install Reconx
 
-Install the CLI into Go's binary directory:
+Install the CLI from the repository into Go's binary directory:
 
 ```bash
-go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+git clone https://github.com/parsamajidipour/reconx.git
+cd reconx
+go install ./cmd/reconx
 ```
 
 Make sure Go's binary directory is in `PATH`:
