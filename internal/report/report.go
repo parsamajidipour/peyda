@@ -98,6 +98,51 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 	return os.WriteFile(output, []byte(b.String()), 0o644)
 }
 
+func WriteText(runDir string, cfg config.Config) error {
+	output := filepath.Join(runDir, "notes/recon-report.txt")
+	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
+		return err
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "RECONX REPORT\n")
+	fmt.Fprintf(&b, "=============\n\n")
+	fmt.Fprintf(&b, "Generated UTC : %s\n", time.Now().UTC().Format(time.RFC3339))
+	fmt.Fprintf(&b, "Target        : %s\n", cfg.Target)
+	fmt.Fprintf(&b, "Profile       : %s\n", cfg.Profile)
+	fmt.Fprintf(&b, "Run folder    : %s\n\n", runDir)
+
+	fmt.Fprintf(&b, "RUN SETTINGS\n")
+	fmt.Fprintf(&b, "------------\n")
+	fmt.Fprintf(&b, "Probe rate       : %d\n", cfg.ProbeRate)
+	fmt.Fprintf(&b, "Crawl rate       : %d\n", cfg.CrawlRate)
+	fmt.Fprintf(&b, "Crawl depth      : %d\n", cfg.CrawlDepth)
+	fmt.Fprintf(&b, "Crawl duration   : %s\n", cfg.CrawlDuration)
+	fmt.Fprintf(&b, "Max domain pages : %d\n", cfg.MaxDomainPages)
+	fmt.Fprintf(&b, "API probe rate   : %d\n\n", cfg.APIRate)
+
+	writeCounts(&b, runDir)
+	writePlainSection(&b, "SUBDOMAINS", "These subdomains were found:", readLines(filepath.Join(runDir, "normalized/subdomains.txt")))
+	writePlainSection(&b, "RESOLVED HOSTS", "These hosts resolved successfully:", readLines(filepath.Join(runDir, "normalized/resolved-hosts.txt")))
+	writePlainSection(&b, "LIVE HTTP/S SERVICES", "These HTTP/S services responded:", readLines(filepath.Join(runDir, "normalized/live-hosts.txt")))
+	writePlainSection(&b, "HIGH-SIGNAL REVIEW QUEUE", "Review these first:", readLines(filepath.Join(runDir, "notes/interesting-hosts.txt")))
+	writePlainSection(&b, "JAVASCRIPT FILES", "These JavaScript files were discovered:", readLines(filepath.Join(runDir, "normalized/js-files.txt")))
+	writePlainSection(&b, "JAVASCRIPT ROUTE LEADS", "These route leads were extracted from crawl/JavaScript data:", dataLines(filepath.Join(runDir, "notes/js-leads.tsv")))
+	writePlainSection(&b, "SOURCE MAP CANDIDATES", "These source map candidates were found:", readLines(filepath.Join(runDir, "normalized/source-map-candidates.txt")))
+	writePlainSection(&b, "API DOC/SCHEMA PROBES", "These API documentation/schema paths responded:", readLines(filepath.Join(runDir, "normalized/api-docs-probed.txt")))
+	writePlainSection(&b, "API INVENTORY", "These API endpoints were parsed from schemas:", dataLines(filepath.Join(runDir, "normalized/api-inventory.tsv")))
+	writePlainSection(&b, "CLOUD CANDIDATES", "These cloud or secret-looking leads were found:", dataLines(filepath.Join(runDir, "notes/cloud-candidates.tsv")))
+
+	fmt.Fprintf(&b, "NEXT ACTIONS\n")
+	fmt.Fprintf(&b, "------------\n")
+	fmt.Fprintf(&b, "1. Confirm scope and ownership before vulnerability testing.\n")
+	fmt.Fprintf(&b, "2. Review staging, admin, upload, API, billing, webhook, and cloud leads first.\n")
+	fmt.Fprintf(&b, "3. Use JSONL for automation and this text report for quick human review.\n")
+	fmt.Fprintf(&b, "4. Convert only validated impact into a vulnerability report.\n")
+
+	return os.WriteFile(output, []byte(b.String()), 0o644)
+}
+
 func collectEvents(runDir string) []Event {
 	now := time.Now().UTC().Format(time.RFC3339)
 	var events []Event
@@ -218,6 +263,53 @@ func addTopSection(b *strings.Builder, title, path string, limit int) {
 		lines = lines[:limit]
 	}
 	fmt.Fprintf(b, "```text\n%s\n```\n\n", strings.Join(lines, "\n"))
+}
+
+func writeCounts(b *strings.Builder, runDir string) {
+	counts := []struct {
+		name  string
+		count int
+	}{
+		{"Subdomains", countLines(filepath.Join(runDir, "normalized/subdomains.txt"))},
+		{"Resolved hosts", countLines(filepath.Join(runDir, "normalized/resolved-hosts.txt"))},
+		{"Live HTTP/S services", countLines(filepath.Join(runDir, "normalized/live-hosts.txt"))},
+		{"High-signal hosts", countLines(filepath.Join(runDir, "notes/interesting-hosts.txt"))},
+		{"JavaScript files", countLines(filepath.Join(runDir, "normalized/js-files.txt"))},
+		{"JavaScript route leads", countLines(filepath.Join(runDir, "normalized/js-route-leads.txt"))},
+		{"API doc/schema probes", countLines(filepath.Join(runDir, "normalized/api-docs-probed.txt"))},
+		{"API inventory rows", len(dataLines(filepath.Join(runDir, "normalized/api-inventory.tsv")))},
+		{"Cloud candidates", len(dataLines(filepath.Join(runDir, "notes/cloud-candidates.tsv")))},
+		{"JSONL events", countLines(filepath.Join(runDir, "normalized/recon-events.jsonl"))},
+	}
+
+	fmt.Fprintf(b, "COUNTS\n")
+	fmt.Fprintf(b, "------\n")
+	for _, item := range counts {
+		fmt.Fprintf(b, "%-25s %d\n", item.name+":", item.count)
+	}
+	fmt.Fprintf(b, "\n")
+}
+
+func writePlainSection(b *strings.Builder, title, intro string, lines []string) {
+	fmt.Fprintf(b, "%s\n", title)
+	fmt.Fprintf(b, "%s\n", strings.Repeat("-", len(title)))
+	fmt.Fprintf(b, "%s\n\n", intro)
+	if len(lines) == 0 {
+		fmt.Fprintf(b, "No data.\n\n")
+		return
+	}
+	for i, line := range lines {
+		fmt.Fprintf(b, "%d. %s\n", i+1, line)
+	}
+	fmt.Fprintf(b, "\n")
+}
+
+func dataLines(path string) []string {
+	lines := readLines(path)
+	if len(lines) <= 1 {
+		return nil
+	}
+	return lines[1:]
 }
 
 func readLines(path string) []string {

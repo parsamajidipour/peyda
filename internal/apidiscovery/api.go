@@ -103,6 +103,9 @@ func Run(opts Options) (Result, error) {
 	if err := writeLines(filepath.Join(opts.RunDir, "normalized/schema-json-candidates.txt"), schemaCandidates); err != nil {
 		return Result{}, err
 	}
+	if err := resetDir(filepath.Join(opts.RunDir, "raw/api")); err != nil {
+		return Result{}, err
+	}
 	methods, err := downloadAndParseSchemas(opts.RunDir, schemaCandidates, logFile)
 	if err != nil {
 		return Result{}, err
@@ -259,6 +262,7 @@ func probeDocs(opts Options) error {
 	}
 	input := filepath.Join(opts.RunDir, "raw/api-doc-paths.txt")
 	output := filepath.Join(opts.RunDir, "normalized/api-docs-probed.txt")
+	_ = os.Remove(output)
 	cmd := exec.Command(
 		httpxPath,
 		"-l", input,
@@ -284,6 +288,13 @@ func probeDocs(opts Options) error {
 		return err
 	}
 	return file.Close()
+}
+
+func resetDir(path string) error {
+	if err := os.RemoveAll(path); err != nil {
+		return err
+	}
+	return os.MkdirAll(path, 0o755)
 }
 
 func downloadAndParseSchemas(runDir string, urls []string, log io.Writer) ([]MethodPath, error) {

@@ -143,9 +143,10 @@ func runSubfinder(opts Options) error {
 		return err
 	}
 	output := filepath.Join(opts.RunDir, "raw/subfinder.txt")
+	_ = os.Remove(output)
 	cmd := exec.Command(path, "-d", opts.Target, "-all", "-recursive", "-silent", "-o", output)
 	cmd.Dir = opts.Root
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	return cmd.Run()
@@ -165,7 +166,8 @@ func wildcardDNSCheck(opts Options) error {
 	if err := writeLines(input, probes); err != nil {
 		return err
 	}
-	return runTool(opts.Root, dnsxPath, "-l", input, "-silent", "-a", "-resp", "-o", output)
+	_ = os.Remove(output)
+	return runTool(opts.Root, dnsxPath, "-l", input, "-silent", "-nc", "-a", "-resp", "-o", output)
 }
 
 func resolveHosts(opts Options) ([]string, error) {
@@ -175,7 +177,8 @@ func resolveHosts(opts Options) ([]string, error) {
 	}
 	input := filepath.Join(opts.RunDir, "normalized/subdomains.txt")
 	output := filepath.Join(opts.RunDir, "normalized/resolved.txt")
-	if err := runTool(opts.Root, dnsxPath, "-l", input, "-silent", "-a", "-resp", "-o", output); err != nil {
+	_ = os.Remove(output)
+	if err := runTool(opts.Root, dnsxPath, "-l", input, "-silent", "-nc", "-a", "-resp", "-o", output); err != nil {
 		return nil, err
 	}
 	hosts := uniqueHostsFromDNSX(readLines(output))
@@ -192,11 +195,13 @@ func probeHTTP(opts Options) ([]string, error) {
 	}
 	input := filepath.Join(opts.RunDir, "normalized/resolved-hosts.txt")
 	output := filepath.Join(opts.RunDir, "normalized/live-hosts.txt")
+	_ = os.Remove(output)
 	err = runTool(
 		opts.Root,
 		httpxPath,
 		"-l", input,
 		"-silent",
+		"-nc",
 		"-title",
 		"-status-code",
 		"-content-length",
@@ -214,7 +219,7 @@ func probeHTTP(opts Options) ([]string, error) {
 func runTool(root, path string, args ...string) error {
 	cmd := exec.Command(path, args...)
 	cmd.Dir = root
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
 	cmd.Env = deps.WithGoBinFirst(os.Environ())
 	return cmd.Run()

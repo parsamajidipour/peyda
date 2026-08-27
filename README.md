@@ -8,8 +8,8 @@
 
 `reconx` turns messy reconnaissance into a repeatable command-line workflow:
 scope setup, passive subdomain collection, DNS resolution, live HTTP probing,
-JavaScript route extraction, API discovery, cloud hints, JSONL events, and a
-human-readable report.
+JavaScript route extraction, API discovery, cloud hints, JSONL events, and
+human-readable text/Markdown reports.
 
 Recon output is a review queue, not a vulnerability report. The tool preserves
 evidence, keeps output structured, and makes manual validation easier.
@@ -51,6 +51,7 @@ Outputs:
 
 ```text
 runs/example.com/YYYY-MM-DD/
+├── notes/recon-report.txt
 ├── notes/recon-summary.md
 ├── normalized/recon-events.jsonl
 ├── normalized/live-hosts.txt
@@ -82,7 +83,7 @@ cmd/reconx/        CLI entry point
 internal/config/   JSON config and profile defaults
 internal/deps/     Dependency orchestration
 internal/reconrun/ Native run setup and profile orchestration
-internal/report/   JSONL and Markdown report generation
+internal/report/   Text, JSONL, and Markdown report generation
 internal/subdomain/ Native subdomain collection, probing, and scoring
 internal/apidiscovery/ Native API candidate discovery and OpenAPI parsing
 internal/cloud/    Native cloud and secret-looking lead extraction

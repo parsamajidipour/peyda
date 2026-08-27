@@ -109,6 +109,9 @@ func Run(opts Options) (Result, error) {
 	}
 
 	log("[js] Downloading JavaScript files...")
+	if err := resetDir(filepath.Join(opts.RunDir, "raw/js")); err != nil {
+		return Result{}, err
+	}
 	downloaded, err := downloadJavaScript(opts.RunDir, jsFiles)
 	if err != nil {
 		return Result{}, err
@@ -190,6 +193,8 @@ func runKatana(opts Options) error {
 		return err
 	}
 	output := filepath.Join(opts.RunDir, "raw/katana-urls.txt")
+	_ = os.Remove(output)
+	_ = os.Remove(filepath.Join(opts.RunDir, "raw/katana-urls.all.txt"))
 	cmd := exec.Command(
 		katanaPath,
 		"-list", filepath.Join(opts.RunDir, "normalized/live-urls.txt"),
@@ -287,6 +292,13 @@ func filterRoutesInScope(routes []string, target string) []string {
 		}
 	}
 	return unique(scoped)
+}
+
+func resetDir(path string) error {
+	if err := os.RemoveAll(path); err != nil {
+		return err
+	}
+	return os.MkdirAll(path, 0o755)
 }
 
 func downloadJavaScript(runDir string, urls []string) (int, error) {

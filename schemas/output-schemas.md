@@ -110,6 +110,13 @@ Produced by `reconx run` in `balanced` and `deep` profiles.
 | exposure_guess | provider hint, public read, possible secret, unknown |
 | next_action | Validate ownership, monitor, discard, or ask permission |
 
+## `notes/recon-report.txt`
+
+Produced by `reconx run`. This is the primary human-readable report for a run.
+It includes run settings, counts, discovered subdomains, resolved hosts, live
+HTTP/S services, JavaScript files, JavaScript route leads, API probes, API
+inventory rows, cloud candidates, and next actions.
+
 ## `notes/recon-summary.md`
 
 Produced by `reconx run`. Use it as an internal run summary and handoff aid, not as a vulnerability report.

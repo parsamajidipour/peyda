@@ -79,11 +79,15 @@ func Run(root string, cfg config.Config) error {
 			return err
 		}
 	}
+	if err := report.WriteText(runDir, cfg); err != nil {
+		return err
+	}
 	if err := report.WriteMarkdown(runDir, cfg); err != nil {
 		return err
 	}
 
-	fmt.Printf("\nRecon complete.\nSummary:\n  %s\n", filepath.Join(runDir, "notes/recon-summary.md"))
+	fmt.Printf("\nRecon complete.\nText report:\n  %s\n", filepath.Join(runDir, "notes/recon-report.txt"))
+	fmt.Printf("Markdown summary:\n  %s\n", filepath.Join(runDir, "notes/recon-summary.md"))
 	if cfg.WriteJSONL {
 		fmt.Printf("JSONL:\n  %s\n", filepath.Join(runDir, "normalized/recon-events.jsonl"))
 	}

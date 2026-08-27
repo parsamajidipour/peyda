@@ -75,6 +75,7 @@ Config fields:
 
 ```text
 runs/example.com/YYYY-MM-DD/
+├── notes/recon-report.txt
 ├── notes/recon-summary.md
 ├── normalized/recon-events.jsonl
 ├── normalized/subdomains.txt
@@ -87,11 +88,11 @@ runs/example.com/YYYY-MM-DD/
 └── notes/cloud-candidates.tsv
 ```
 
-Open the summary first:
+Open the text report first:
 
 ```bash
 latest_run="$(ls -td runs/example.com/* | head -1)"
-less "$latest_run/notes/recon-summary.md"
+less "$latest_run/notes/recon-report.txt"
 ```
 
 Use JSONL for automation:
