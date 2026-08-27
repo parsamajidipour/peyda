@@ -2,13 +2,32 @@
 
 Install only what you need. These commands are examples for a Linux workstation with Go installed.
 
-## One-Command Setup
+## Install Reconx
 
-From the repository root:
+Install the CLI into Go's binary directory:
 
 ```bash
-go build -o bin/reconx ./cmd/reconx
-bin/reconx deps
+go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+```
+
+Make sure Go's binary directory is in `PATH`:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+For `zsh`:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Then install or refresh recon dependencies:
+
+```bash
+reconx deps
 ```
 
 This command:
@@ -21,13 +40,13 @@ This command:
 Force-update Go-based recon tools:
 
 ```bash
-bin/reconx deps --update
+reconx deps --update
 ```
 
 Only check without installing:
 
 ```bash
-bin/reconx deps --check
+reconx deps --check
 ```
 
 ## ProjectDiscovery Tools
@@ -83,6 +102,15 @@ export PATH="$HOME/go/bin:$PATH"
 ```
 
 Add that line to your shell profile if needed.
+
+## Local Development Build
+
+From a cloned repository:
+
+```bash
+go build -o bin/reconx ./cmd/reconx
+bin/reconx deps --check
+```
 
 ## Notes
 

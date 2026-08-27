@@ -24,13 +24,13 @@ Automation:
 ## Run Setup
 
 ```bash
-bin/reconx run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
+reconx run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
 ```
 
 Or run the first two stages manually:
 
 ```bash
-bin/reconx run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
+reconx run -t example-saas.com -e config/excluded.example.txt --profile balanced -p 30
 ```
 
 ## Sample Live Hosts

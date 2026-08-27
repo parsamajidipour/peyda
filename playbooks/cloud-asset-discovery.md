@@ -21,7 +21,7 @@ Policy: cloud testing and secrets validation rules
 From the repository root:
 
 ```bash
-bin/reconx run -t example.com --profile balanced
+reconx run -t example.com --profile balanced
 ```
 
 `reconx` extracts cloud provider hints and secret-looking strings natively from

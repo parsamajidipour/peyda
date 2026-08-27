@@ -21,7 +21,7 @@ Output: normalized/api-inventory.tsv
 Fast path from the repository root:
 
 ```bash
-bin/reconx run -t example.com --profile balanced
+reconx run -t example.com --profile balanced
 ```
 
 `reconx` builds API host candidates, probes common documentation/schema paths,

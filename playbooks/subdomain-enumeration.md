@@ -21,7 +21,7 @@ Run directory: runs/example.com/YYYY-MM-DD/
 Fast path from the repository root:
 
 ```bash
-bin/reconx run -t example.com --profile balanced -p 50
+reconx run -t example.com --profile balanced -p 50
 ```
 
 `reconx` handles normalization, exclusion filtering, DNS/HTTP orchestration, and

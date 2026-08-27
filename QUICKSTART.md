@@ -2,10 +2,31 @@
 
 Replace `example.com` with a domain that is explicitly in scope.
 
-## 1. Build
+## 1. Install
 
 ```bash
-go build -o bin/reconx ./cmd/reconx
+go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+```
+
+Add Go's binary directory to your `PATH` if needed:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+For `zsh`:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Verify:
+
+```bash
+which reconx
+reconx help
 ```
 
 ## 2. Prepare Dependencies
@@ -13,13 +34,13 @@ go build -o bin/reconx ./cmd/reconx
 Check only:
 
 ```bash
-bin/reconx deps --check
+reconx deps --check
 ```
 
 Install or update missing tools:
 
 ```bash
-bin/reconx deps
+reconx deps
 ```
 
 `reconx` prefers `$HOME/go/bin` first in `PATH` so ProjectDiscovery `httpx`
@@ -30,26 +51,26 @@ wins over the Python `httpx` CLI when both are installed.
 Balanced profile:
 
 ```bash
-bin/reconx run -t example.com --profile balanced -p 50
+reconx run -t example.com --profile balanced -p 50
 ```
 
 Passive profile:
 
 ```bash
-bin/reconx run -t example.com --profile passive
+reconx run -t example.com --profile passive
 ```
 
 Deep profile:
 
 ```bash
-bin/reconx run -t example.com --profile deep
+reconx run -t example.com --profile deep
 ```
 
 ## 4. Use a Config File
 
 ```bash
-bin/reconx config init
-bin/reconx run --config reconx.example.json
+reconx config init
+reconx run --config reconx.example.json
 ```
 
 Config fields:
@@ -173,8 +194,8 @@ column -t -s $'\t' "$latest_run/normalized/asset-scores.tsv" | less -S
 
 | Problem | Likely cause | Fix |
 | --- | --- | --- |
-| Python `httpx` runs instead of ProjectDiscovery `httpx` | PATH collision | Run `bin/reconx deps` |
+| Python `httpx` runs instead of ProjectDiscovery `httpx` | PATH collision | Run `reconx deps` |
 | Very few subdomains | No provider API keys | Add provider config and rerun |
 | Many identical live pages | CDN, wildcard, or soft-404 | Review title, length, redirects, screenshots |
-| JS recon is skipped | `katana` missing or failed | Run `bin/reconx deps --update` |
+| JS recon is skipped | `katana` missing or failed | Run `reconx deps --update` |
 | Lead looks sensitive | Scope or data risk unclear | Stop and confirm authorization |

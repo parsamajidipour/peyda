@@ -60,22 +60,43 @@ No version is printed in the banner for now.
 
 ## Install
 
-Build the CLI:
+Install `reconx` with Go:
 
 ```bash
-go build -o bin/reconx ./cmd/reconx
+go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+```
+
+Make sure Go's binary directory is in your `PATH`:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+If you use `zsh`:
+
+```bash
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Verify the install:
+
+```bash
+which reconx
+reconx help
 ```
 
 Check dependencies:
 
 ```bash
-bin/reconx deps --check
+reconx deps --check
 ```
 
 Install or refresh missing ProjectDiscovery tools:
 
 ```bash
-bin/reconx deps
+reconx deps
 ```
 
 `reconx` prefers `$HOME/go/bin` first in `PATH`, so ProjectDiscovery `httpx` wins over the Python package named `httpx` when both exist.
@@ -85,25 +106,25 @@ bin/reconx deps
 Run a normal balanced recon:
 
 ```bash
-bin/reconx run -t example.com --profile balanced
+reconx run -t example.com --profile balanced
 ```
 
 Run with a lower HTTP probe rate:
 
 ```bash
-bin/reconx run -t example.com --profile balanced -p 25
+reconx run -t example.com --profile balanced -p 25
 ```
 
 Run a passive-only pass:
 
 ```bash
-bin/reconx run -t example.com --profile passive
+reconx run -t example.com --profile passive
 ```
 
 Run a deeper pass:
 
 ```bash
-bin/reconx run -t example.com --profile deep
+reconx run -t example.com --profile deep
 ```
 
 Open the final text report:
@@ -223,7 +244,7 @@ Tool settings are optional. If you only override one tool field, the remaining d
 ### 1. Create a config file
 
 ```bash
-bin/reconx config init -o reconx.json
+reconx config init -o reconx.json
 ```
 
 This creates a runnable config file.
@@ -333,13 +354,13 @@ The `tools` section controls how `reconx` calls `subfinder`, `dnsx`, `httpx`, an
 ### 6. Run with the config
 
 ```bash
-bin/reconx run --config reconx.json
+reconx run --config reconx.json
 ```
 
 You can still override common options from the CLI:
 
 ```bash
-bin/reconx run --config reconx.json -p 15 --crawl-duration 30s
+reconx run --config reconx.json -p 15 --crawl-duration 30s
 ```
 
 ## Tool Config Reference
@@ -614,11 +635,11 @@ jq -r 'select(.type=="js_route") | .value' "$latest_run/normalized/recon-events.
 
 | Problem | Likely cause | Fix |
 | --- | --- | --- |
-| `httpx` looks like the Python CLI | PATH collision | Run `bin/reconx deps`; `$HOME/go/bin` is preferred |
+| `httpx` looks like the Python CLI | PATH collision | Run `reconx deps`; `$HOME/go/bin` is preferred |
 | `crt.sh` returns `429` or `502` | External rate limiting or service issue | `reconx` continues with other sources |
 | Very few subdomains | No provider API keys or small public footprint | Add provider config for ProjectDiscovery tools and rerun |
 | Too much crawl output | Crawl caps too high | Lower `crawl_duration`, `crawl_depth`, or `max_domain_pages` |
-| JS recon is skipped | `katana` missing or failed | Run `bin/reconx deps --update` |
+| JS recon is skipped | `katana` missing or failed | Run `reconx deps --update` |
 | Report has many low-value assets | CDN or soft-404 behavior | Start with `notes/interesting-hosts.txt` and `asset-scores.tsv` |
 | Lead looks sensitive | Scope or data risk unclear | Stop and confirm authorization before validation |
 

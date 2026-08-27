@@ -7,8 +7,8 @@ the data produced by the tool.
 ## Current CLI
 
 ```bash
-go build -o bin/reconx ./cmd/reconx
-bin/reconx run -t example.com --profile balanced -p 50
+go install github.com/parsamajidipour/reconx/cmd/reconx@latest
+reconx run -t example.com --profile balanced -p 50
 ```
 
 Commands:
@@ -59,4 +59,4 @@ This keeps the normal command short while still allowing advanced users to tune
 2. Add screenshots as a first-class CLI stage.
 3. Add profile presets for rate, crawl depth, and module selection.
 4. Add HTML reports for presentation and GitHub artifacts.
-5. Add installable releases with `go install github.com/parsamajidipour/reconx/cmd/reconx@latest`.
+5. Add installable release binaries for users who do not have Go installed.
