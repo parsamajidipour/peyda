@@ -21,7 +21,7 @@ Run directory: runs/example.com/YYYY-MM-DD/
 Fast path from the repository root:
 
 ```bash
-peyda run example.com --profile balanced -p 50
+peyda example.com -p 25
 ```
 
 `peyda` handles normalization, exclusion filtering, DNS/HTTP orchestration, and

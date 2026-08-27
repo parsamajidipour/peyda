@@ -15,20 +15,20 @@ func TestExtractRunTarget(t *testing.T) {
 	}{
 		{
 			name:         "target before flags",
-			args:         []string{"example.com", "--profile", "deep", "-p", "25"},
+			args:         []string{"example.com", "-p", "25"},
 			wantTarget:   "example.com",
-			wantFiltered: []string{"--profile", "deep", "-p", "25"},
+			wantFiltered: []string{"-p", "25"},
 		},
 		{
 			name:         "target after flags",
-			args:         []string{"--profile", "deep", "example.com"},
+			args:         []string{"--crawl-depth", "3", "example.com"},
 			wantTarget:   "example.com",
-			wantFiltered: []string{"--profile", "deep"},
+			wantFiltered: []string{"--crawl-depth", "3"},
 		},
 		{
 			name:         "legacy target flag",
-			args:         []string{"-t", "example.com", "--profile", "balanced"},
-			wantFiltered: []string{"-t", "example.com", "--profile", "balanced"},
+			args:         []string{"-t", "example.com", "-p", "25"},
+			wantFiltered: []string{"-t", "example.com", "-p", "25"},
 		},
 		{
 			name:    "extra positional argument",

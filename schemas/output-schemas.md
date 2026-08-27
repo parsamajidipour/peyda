@@ -123,7 +123,7 @@ Each line is one JSON object:
 
 ## `normalized/live-hosts.txt`
 
-Produced by `peyda run` in `balanced` and `deep` profiles.
+Produced by `peyda run`.
 
 ```text
 https://app.example.com [200] [Sign in] [React,nginx] [14320]
@@ -158,7 +158,7 @@ Produced by `peyda run`.
 
 ## `normalized/open-ports.tsv`
 
-Produced by `peyda run` in `balanced` and `deep` profiles when `naabu` is available.
+Produced by `peyda run` when `naabu` is available.
 
 | Column | Meaning |
 | --- | --- |
@@ -169,11 +169,11 @@ Produced by `peyda run` in `balanced` and `deep` profiles when `naabu` is availa
 
 ## `normalized/urls.txt`
 
-Produced by `peyda run` in `balanced` and `deep` profiles from `gau` and crawler output.
+Produced by `peyda run` from `gau` and crawler output.
 
 ## `normalized/parameters.tsv`
 
-Produced by `peyda run` in `balanced` and `deep` profiles from URL query strings and optional `Arjun` output.
+Produced by `peyda run` from URL query strings and optional `Arjun` output.
 
 | Column | Meaning |
 | --- | --- |
@@ -183,7 +183,7 @@ Produced by `peyda run` in `balanced` and `deep` profiles from URL query strings
 
 ## `normalized/js-endpoints.txt`
 
-Produced by `peyda run` in `balanced` and `deep` profiles from `xnLinkFinder` and native JavaScript route extraction.
+Produced by `peyda run` from `xnLinkFinder` and native JavaScript route extraction.
 
 ## `notes/interesting-hosts.txt`
 
@@ -191,7 +191,7 @@ Produced by keyword filtering over live hosts. Treat as a review queue, not proo
 
 ## `normalized/asset-scores.tsv`
 
-Produced by `peyda run` in `balanced` and `deep` profiles.
+Produced by `peyda run`.
 
 | Column | Meaning |
 | --- | --- |
@@ -205,7 +205,7 @@ Produced by `peyda run` in `balanced` and `deep` profiles.
 
 ## `normalized/openapi-methods.tsv`
 
-Produced by `peyda run` in `balanced` and `deep` profiles.
+Produced by `peyda run`.
 
 | Column | Meaning |
 | --- | --- |
@@ -215,7 +215,7 @@ Produced by `peyda run` in `balanced` and `deep` profiles.
 
 ## `normalized/api-inventory.tsv`
 
-Produced by `peyda run` in `balanced` and `deep` profiles, then edited manually.
+Produced by `peyda run`, then edited manually.
 
 | Column | Meaning |
 | --- | --- |
@@ -231,7 +231,7 @@ Produced by `peyda run` in `balanced` and `deep` profiles, then edited manually.
 
 ## `notes/js-leads.tsv`
 
-Produced by `peyda run` in `balanced` and `deep` profiles.
+Produced by `peyda run`.
 
 | Column | Meaning |
 | --- | --- |
@@ -243,12 +243,12 @@ Produced by `peyda run` in `balanced` and `deep` profiles.
 
 ## `normalized/source-map-candidates.txt`
 
-Produced by `peyda run` in `balanced` and `deep` profiles.
+Produced by `peyda run`.
 Treat source maps as review candidates and only inspect them where program policy allows it.
 
 ## `notes/cloud-candidates.tsv`
 
-Produced by `peyda run` in `balanced` and `deep` profiles.
+Produced by `peyda run`.
 
 | Column | Meaning |
 | --- | --- |

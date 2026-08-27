@@ -78,7 +78,7 @@ func Run(opts Options) (Result, error) {
 
 	liveHosts := filepath.Join(opts.RunDir, "normalized/live-hosts.txt")
 	if _, err := os.Stat(liveHosts); err != nil {
-		return Result{}, fmt.Errorf("missing %s; run peyda with balanced or deep profile first", liveHosts)
+		return Result{}, fmt.Errorf("missing %s; run peyda first", liveHosts)
 	}
 
 	log("[api] run_dir=%s probe_rate=%d", opts.RunDir, opts.ProbeRate)

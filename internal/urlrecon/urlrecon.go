@@ -18,11 +18,10 @@ import (
 )
 
 type Options struct {
-	RunDir  string
-	Target  string
-	Profile string
-	Tools   config.Tools
-	Out     io.Writer
+	RunDir string
+	Target string
+	Tools  config.Tools
+	Out    io.Writer
 }
 
 type Result struct {

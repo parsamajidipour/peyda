@@ -96,7 +96,7 @@ func Run(opts Options) (Result, error) {
 	result := Result{Subdomains: len(subdomains)}
 
 	if !opts.Resolve {
-		log("[4/7] Passive profile selected; skipping wildcard, DNS, HTTP, and scoring.")
+		log("[4/7] Resolution disabled; skipping wildcard, DNS, HTTP, and scoring.")
 		return result, nil
 	}
 
@@ -113,7 +113,7 @@ func Run(opts Options) (Result, error) {
 	result.ResolvedHosts = len(resolvedHosts)
 
 	if !opts.Probe {
-		log("[6/7] HTTP probing disabled by profile.")
+		log("[6/7] HTTP probing disabled.")
 		return result, nil
 	}
 

@@ -14,7 +14,6 @@ func TestInitCreatesRunFolder(t *testing.T) {
 		Target:     "Example.COM/",
 		RunDate:    "2026-08-27",
 		OutputRoot: tmp,
-		Profile:    config.ProfileBalanced,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +49,6 @@ func TestInitRelativeOutputRootUsesWorkingDirectory(t *testing.T) {
 		Target:     "example.com",
 		RunDate:    "2026-08-27",
 		OutputRoot: "recon-output",
-		Profile:    config.ProfileBalanced,
 	})
 	if err != nil {
 		t.Fatal(err)

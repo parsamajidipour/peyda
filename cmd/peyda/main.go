@@ -58,7 +58,7 @@ results/<target>/.
 
 Usage:
   peyda example.com [-silent] [-json|-jsonl] [-o result.txt]
-  peyda run example.com [--profile balanced] [--config peyda.json] [--no-jsonl]
+  peyda run example.com [--config peyda.json] [--no-jsonl]
   peyda deps [--check | --update]
   peyda init example.com [-d YYYY-MM-DD] [-o runs] [-e excluded.txt]
   peyda config init [-o peyda.example.json]
@@ -71,21 +71,14 @@ Commands:
   config   Write an example JSON config
   version  Print the CLI version
 
-Profiles:
-  passive   Passive collection and normalization only
-  balanced  Subdomains, live probing, JS, API, cloud leads
-  deep      Slow exhaustive recon with deeper crawling and larger caps
-
 Examples:
   peyda example.com
   peyda deps --check
   peyda deps
-  peyda example.com --profile deep
   peyda example.com -silent
   peyda example.com -jsonl -o results.jsonl
-  peyda run example.com --profile balanced -p 25
-  peyda run example.com --profile deep
-  peyda run example.com --profile passive --no-jsonl
+  peyda run example.com -p 25
+  peyda run example.com --no-jsonl
   peyda config init -o peyda.json
   peyda run --config peyda.json
 
@@ -103,7 +96,6 @@ func runCommand(args []string) error {
 	date := fs.String("d", "", "UTC run date")
 	outputFile := fs.String("o", "", "write CLI output to file")
 	outputRoot := fs.String("output-dir", "", "base output root; defaults to the current directory")
-	profile := fs.String("profile", "", "depth profile: passive, balanced, deep; balance is accepted as an alias")
 	configPath := fs.String("config", "", "optional JSON config file")
 	excluded := fs.String("e", "", "excluded-host file")
 	probeRate := fs.Int("p", 0, "HTTP probe rate limit")
@@ -142,9 +134,6 @@ func runCommand(args []string) error {
 	}
 	if *outputFile != "" {
 		cfg.OutputFile = *outputFile
-	}
-	if *profile != "" {
-		cfg.Profile = *profile
 	}
 	if *excluded != "" {
 		cfg.ExcludedFile = *excluded
@@ -185,7 +174,7 @@ func runCommand(args []string) error {
 	if cfg.Target == "" {
 		return errors.New("target is required")
 	}
-	if err := cfg.ApplyProfileDefaults(); err != nil {
+	if err := cfg.ApplyDefaults(); err != nil {
 		return err
 	}
 
@@ -203,7 +192,6 @@ func extractRunTarget(args []string) (string, []string, error) {
 		"-o": {}, "--o": {},
 		"-e": {}, "--e": {},
 		"-p": {}, "--p": {},
-		"--profile":          {},
 		"--config":           {},
 		"--output-dir":       {},
 		"--crawl-depth":      {},
@@ -253,7 +241,7 @@ func printBanner() {
         authorized targets only
 
 [INF] Scope-first recon workflow initialized
-[INF] Active probing is bounded by profile and config limits
+[INF] Active probing is bounded by built-in safety limits and config
 
 `)
 }

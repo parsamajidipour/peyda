@@ -275,7 +275,6 @@ func RenderCLIOutput(runDir string, cfg config.Config, duration time.Duration) (
 	case "json":
 		body := map[string]any{
 			"target":    cfg.Target,
-			"profile":   cfg.Profile,
 			"run_dir":   runDir,
 			"summary":   summary,
 			"results":   records,
@@ -480,10 +479,9 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 	fmt.Fprintf(&b, "# Recon Summary\n\n")
 	fmt.Fprintf(&b, "Generated: `%s`\n\n", time.Now().UTC().Format(time.RFC3339))
 	fmt.Fprintf(&b, "Run folder:\n\n```text\n%s\n```\n\n", runDir)
-	fmt.Fprintf(&b, "## Run Profile\n\n")
+	fmt.Fprintf(&b, "## Run Settings\n\n")
 	fmt.Fprintf(&b, "| Field | Value |\n| --- | --- |\n")
 	fmt.Fprintf(&b, "| Target | `%s` |\n", cfg.Target)
-	fmt.Fprintf(&b, "| Profile | `%s` |\n", cfg.Profile)
 	fmt.Fprintf(&b, "| Probe rate | `%d` |\n", cfg.ProbeRate)
 	fmt.Fprintf(&b, "| Crawl rate | `%d` |\n", cfg.CrawlRate)
 	fmt.Fprintf(&b, "| Crawl depth | `%d` |\n", cfg.CrawlDepth)
@@ -594,7 +592,6 @@ func WriteText(runDir string, cfg config.Config) error {
 	fmt.Fprintf(&b, "=============\n\n")
 	fmt.Fprintf(&b, "Generated UTC : %s\n", time.Now().UTC().Format(time.RFC3339))
 	fmt.Fprintf(&b, "Target        : %s\n", cfg.Target)
-	fmt.Fprintf(&b, "Profile       : %s\n", cfg.Profile)
 	fmt.Fprintf(&b, "Run folder    : %s\n\n", runDir)
 
 	fmt.Fprintf(&b, "RUN SETTINGS\n")

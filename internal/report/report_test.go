@@ -42,7 +42,6 @@ func TestWriteTextIncludesHumanReadableArtifacts(t *testing.T) {
 
 	cfg := config.Config{
 		Target:         "example.com",
-		Profile:        config.ProfileBalanced,
 		ProbeRate:      25,
 		CrawlRate:      10,
 		CrawlDepth:     1,

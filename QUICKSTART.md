@@ -86,18 +86,6 @@ peyda example.com -jsonl
 
 The legacy `-t` form still works, but the positional target is preferred.
 
-Passive profile:
-
-```bash
-peyda example.com --profile passive
-```
-
-Deep profile:
-
-```bash
-peyda example.com --profile deep
-```
-
 ## 4. Use a Config File
 
 ```bash
@@ -111,8 +99,7 @@ Minimal config:
 {
   "target": "example.com",
   "output_root": "runs",
-  "results_root": "results",
-  "profile": "balanced"
+  "results_root": "results"
 }
 ```
 
@@ -183,14 +170,6 @@ Review priority-scored assets:
 ```bash
 column -t -s $'\t' "$latest_run/normalized/asset-scores.tsv" | less -S
 ```
-
-## Profiles
-
-| Profile | Best for | Active probing |
-| --- | --- | --- |
-| `passive` | Safe first pass, scope expansion, asset inventory | No DNS or HTTP probing |
-| `balanced` | Normal bug bounty recon | DNS, HTTP, JS, API, cloud hints; depth 1 crawl capped to 75 pages/domain |
-| `deep` | Larger scopes or dedicated review windows | Slower rate-limit-aware probing; depth 5 crawl capped to 5000 pages/domain |
 
 ## Troubleshooting
 

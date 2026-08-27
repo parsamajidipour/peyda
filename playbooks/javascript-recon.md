@@ -26,7 +26,7 @@ Extract client-side routes, API paths, feature flags, source maps, build metadat
 Fast path from the repository root:
 
 ```bash
-peyda run example.com --profile balanced
+peyda example.com
 ```
 
 `peyda` runs `katana` as the crawl engine, then handles JavaScript URL extraction,

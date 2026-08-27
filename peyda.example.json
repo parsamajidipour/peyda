@@ -3,20 +3,19 @@
   "run_date": "",
   "output_root": "runs",
   "results_root": "results",
-  "profile": "balanced",
-  "probe_rate": 50,
-  "crawl_rate": 10,
-  "crawl_depth": 1,
-  "crawl_duration": "45s",
-  "max_domain_pages": 75,
-  "api_rate": 20,
-  "port_rate": 50,
+  "probe_rate": 25,
+  "crawl_rate": 5,
+  "crawl_depth": 5,
+  "crawl_duration": "30m",
+  "max_domain_pages": 5000,
+  "api_rate": 10,
+  "port_rate": 25,
   "excluded_file": "",
   "skip_deps": false,
   "write_jsonl": true,
   "tools": {
     "whois": {
-      "verbose": false
+      "verbose": true
     },
     "dig": {
       "record_types": [
@@ -26,24 +25,33 @@
         "NS",
         "TXT",
         "SOA",
-        "CAA"
+        "CAA",
+        "DNSKEY",
+        "DS"
       ],
-      "trace": false,
-      "nssearch": false
+      "trace": true,
+      "nssearch": true
     },
     "subfinder": {
       "all": true,
       "recursive": true,
-      "timeout": 30,
-      "max_time": 10
+      "timeout": 120,
+      "max_time": 60
     },
     "dnsx": {
       "record_types": [
-        "a"
+        "a",
+        "aaaa",
+        "cname",
+        "ns",
+        "mx",
+        "txt",
+        "soa",
+        "caa"
       ],
       "response": true,
       "recon": false,
-      "trace": false
+      "trace": true
     },
     "httpx": {
       "follow_redirects": true,
@@ -52,27 +60,27 @@
       "content_length": true,
       "content_type": true,
       "tech_detect": true,
-      "web_server": false,
-      "ip": false,
-      "cname": false,
-      "asn": false,
+      "web_server": true,
+      "ip": true,
+      "cname": true,
+      "asn": true,
       "cdn": true,
-      "response_time": false,
-      "http2": false,
-      "pipeline": false,
-      "tls_probe": false,
-      "tls_grab": false,
-      "probe_all_ips": false,
-      "retries": 1,
-      "timeout": 10
+      "response_time": true,
+      "http2": true,
+      "pipeline": true,
+      "tls_probe": true,
+      "tls_grab": true,
+      "probe_all_ips": true,
+      "retries": 2,
+      "timeout": 20
     },
     "naabu": {
-      "top_ports": "1000",
-      "scan_all_ips": false,
+      "top_ports": "full",
+      "scan_all_ips": true,
       "service_discovery": true,
-      "service_version": false,
-      "verify": false,
-      "passive": false
+      "service_version": true,
+      "verify": true,
+      "passive": true
     },
     "gau": {
       "subs": true,
@@ -82,29 +90,29 @@
         "otx",
         "urlscan"
       ],
-      "retries": 2,
-      "timeout": 60,
-      "threads": 2
+      "retries": 5,
+      "timeout": 120,
+      "threads": 1
     },
     "katana": {
       "js_crawl": true,
       "ignore_query_params": true,
       "filter_similar": true,
-      "known_files": "",
+      "known_files": "all",
       "field_scope": "rdn",
       "strategy": "depth-first",
-      "headless": false,
-      "xhr_extraction": false,
+      "headless": true,
+      "xhr_extraction": true,
       "display_out_scope": false,
-      "jsluice": false,
-      "form_extraction": false,
-      "tech_detect": false,
-      "path_climb": false,
-      "knowledge_base": false,
+      "jsluice": true,
+      "form_extraction": true,
+      "tech_detect": true,
+      "path_climb": true,
+      "knowledge_base": true,
       "store_field": "",
-      "concurrency": 10,
-      "parallelism": 10,
-      "host_rate_limit": 0
+      "concurrency": 5,
+      "parallelism": 5,
+      "host_rate_limit": 2
     },
     "arjun": {
       "enabled": true

@@ -21,7 +21,7 @@ Policy: cloud testing and secrets validation rules
 From the repository root:
 
 ```bash
-peyda run example.com --profile balanced
+peyda example.com
 ```
 
 `peyda` extracts cloud provider hints and secret-looking strings natively from

@@ -42,7 +42,7 @@ func Run(root string, cfg config.Config) error {
 		fmt.Fprintf(statusOut, "[INF] %s\n", message)
 	}
 
-	if !cfg.SkipDeps && cfg.Profile != config.ProfilePassive {
+	if !cfg.SkipDeps {
 		status("Preparing dependencies")
 		if err := deps.Run(root, deps.Ensure, logOut); err != nil {
 			return err
@@ -57,104 +57,81 @@ func Run(root string, cfg config.Config) error {
 
 	status("Collecting WHOIS and DNS baseline")
 	if _, err := hostinfo.Run(hostinfo.Options{
-		RunDir:  runDir,
-		Target:  cfg.Target,
-		Profile: cfg.Profile,
-		Tools:   cfg.Tools,
-		Out:     logOut,
+		RunDir: runDir,
+		Target: cfg.Target,
+		Tools:  cfg.Tools,
+		Out:    logOut,
 	}); err != nil {
 		return err
 	}
 
-	switch cfg.Profile {
-	case config.ProfilePassive:
-		status("Discovering passive subdomains")
-		_, err = subdomain.Run(subdomain.Options{
-			Root:    root,
-			RunDir:  runDir,
-			Target:  cfg.Target,
-			Resolve: false,
-			Probe:   false,
-			Tools:   cfg.Tools,
-			Out:     logOut,
-		})
-	default:
-		status("Discovering, resolving, and probing subdomains")
-		_, err = subdomain.Run(subdomain.Options{
-			Root:      root,
-			RunDir:    runDir,
-			Target:    cfg.Target,
-			ProbeRate: cfg.ProbeRate,
-			Resolve:   true,
-			Probe:     true,
-			Tools:     cfg.Tools,
-			Out:       logOut,
-		})
-	}
-	if err != nil {
+	status("Discovering, resolving, and probing subdomains")
+	if _, err = subdomain.Run(subdomain.Options{
+		Root:      root,
+		RunDir:    runDir,
+		Target:    cfg.Target,
+		ProbeRate: cfg.ProbeRate,
+		Resolve:   true,
+		Probe:     true,
+		Tools:     cfg.Tools,
+		Out:       logOut,
+	}); err != nil {
 		return err
 	}
 
-	switch cfg.Profile {
-	case config.ProfilePassive:
-	default:
-		status("Scanning optional ports and services")
-		if _, err := ports.Run(ports.Options{
-			RunDir:  runDir,
-			Profile: cfg.Profile,
-			Rate:    cfg.PortRate,
-			Tools:   cfg.Tools,
-			Out:     logOut,
-		}); err != nil {
-			fmt.Fprintf(logOut, "[peyda] port scan skipped or failed: %v\n", err)
-		}
-		status("Collecting historical URLs")
-		if err := urlrecon.RunGau(urlrecon.Options{
-			RunDir:  runDir,
-			Target:  cfg.Target,
-			Profile: cfg.Profile,
-			Tools:   cfg.Tools,
-			Out:     logOut,
-		}); err != nil {
-			fmt.Fprintf(logOut, "[peyda] gau URL collection skipped or failed: %v\n", err)
-		}
-		status("Crawling live targets and extracting JavaScript")
-		if _, err := jsrecon.Run(jsrecon.Options{
-			Root:           root,
-			RunDir:         runDir,
-			Target:         cfg.Target,
-			CrawlRate:      cfg.CrawlRate,
-			CrawlDepth:     cfg.CrawlDepth,
-			CrawlDuration:  cfg.CrawlDuration,
-			MaxDomainPages: cfg.MaxDomainPages,
-			Tools:          cfg.Tools,
-			Out:            logOut,
-		}); err != nil {
-			fmt.Fprintf(logOut, "[peyda] JS recon skipped or failed: %v\n", err)
-		}
-		status("Normalizing URLs, parameters, and endpoints")
-		if _, err := urlrecon.RunPostJS(urlrecon.Options{
-			RunDir:  runDir,
-			Target:  cfg.Target,
-			Profile: cfg.Profile,
-			Tools:   cfg.Tools,
-			Out:     logOut,
-		}); err != nil {
-			fmt.Fprintf(logOut, "[peyda] URL/parameter recon skipped or failed: %v\n", err)
-		}
-		status("Running extended API and cloud analysis")
-		if _, err := apidiscovery.Run(apidiscovery.Options{
-			Root:      root,
-			RunDir:    runDir,
-			ProbeRate: cfg.APIRate,
-			Tools:     cfg.Tools,
-			Out:       logOut,
-		}); err != nil {
-			return err
-		}
-		if _, err := cloud.RunWithOutput(runDir, logOut); err != nil {
-			return err
-		}
+	status("Scanning optional ports and services")
+	if _, err := ports.Run(ports.Options{
+		RunDir: runDir,
+		Rate:   cfg.PortRate,
+		Tools:  cfg.Tools,
+		Out:    logOut,
+	}); err != nil {
+		fmt.Fprintf(logOut, "[peyda] port scan skipped or failed: %v\n", err)
+	}
+	status("Collecting historical URLs")
+	if err := urlrecon.RunGau(urlrecon.Options{
+		RunDir: runDir,
+		Target: cfg.Target,
+		Tools:  cfg.Tools,
+		Out:    logOut,
+	}); err != nil {
+		fmt.Fprintf(logOut, "[peyda] gau URL collection skipped or failed: %v\n", err)
+	}
+	status("Crawling live targets and extracting JavaScript")
+	if _, err := jsrecon.Run(jsrecon.Options{
+		Root:           root,
+		RunDir:         runDir,
+		Target:         cfg.Target,
+		CrawlRate:      cfg.CrawlRate,
+		CrawlDepth:     cfg.CrawlDepth,
+		CrawlDuration:  cfg.CrawlDuration,
+		MaxDomainPages: cfg.MaxDomainPages,
+		Tools:          cfg.Tools,
+		Out:            logOut,
+	}); err != nil {
+		fmt.Fprintf(logOut, "[peyda] JS recon skipped or failed: %v\n", err)
+	}
+	status("Normalizing URLs, parameters, and endpoints")
+	if _, err := urlrecon.RunPostJS(urlrecon.Options{
+		RunDir: runDir,
+		Target: cfg.Target,
+		Tools:  cfg.Tools,
+		Out:    logOut,
+	}); err != nil {
+		fmt.Fprintf(logOut, "[peyda] URL/parameter recon skipped or failed: %v\n", err)
+	}
+	status("Running extended API and cloud analysis")
+	if _, err := apidiscovery.Run(apidiscovery.Options{
+		Root:      root,
+		RunDir:    runDir,
+		ProbeRate: cfg.APIRate,
+		Tools:     cfg.Tools,
+		Out:       logOut,
+	}); err != nil {
+		return err
+	}
+	if _, err := cloud.RunWithOutput(runDir, logOut); err != nil {
+		return err
 	}
 
 	status("Writing internal reports")
@@ -229,10 +206,9 @@ func Init(cfg config.Config) (string, error) {
 	}
 
 	meta := fmt.Sprintf(
-		"target=%s\nrun_date=%s\nprofile=%s\ncreated_utc=%s\noutput_root=%s\nresults_root=%s\ncrawl_depth=%d\ncrawl_duration=%s\nmax_domain_pages=%d\n",
+		"target=%s\nrun_date=%s\ncreated_utc=%s\noutput_root=%s\nresults_root=%s\ncrawl_depth=%d\ncrawl_duration=%s\nmax_domain_pages=%d\n",
 		safeTarget,
 		runDate,
-		cfg.Profile,
 		time.Now().UTC().Format(time.RFC3339),
 		outputRoot,
 		cfg.ResultsRoot,

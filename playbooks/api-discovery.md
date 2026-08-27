@@ -21,7 +21,7 @@ Output: normalized/api-inventory.tsv
 Fast path from the repository root:
 
 ```bash
-peyda run example.com --profile balanced
+peyda example.com
 ```
 
 `peyda` builds API host candidates, probes common documentation/schema paths,

@@ -72,7 +72,7 @@ When a recon run starts, the CLI prints a small banner:
         authorized targets only
 
 [INF] Scope-first recon workflow initialized
-[INF] Active probing is bounded by profile and config limits
+[INF] Active probing is bounded by built-in safety limits and config
 ```
 
 No version is printed in the banner for now.
@@ -209,19 +209,7 @@ peyda example.com -silent
 For compatibility, `-t` still works:
 
 ```bash
-peyda run -t example.com --profile balanced
-```
-
-Run a passive-only pass:
-
-```bash
-peyda run example.com --profile passive
-```
-
-Run a deeper pass:
-
-```bash
-peyda run example.com --profile deep
+peyda run -t example.com
 ```
 
 Review internal run notes when you need troubleshooting detail:
@@ -320,33 +308,12 @@ By default, `results/` and `runs/` are created under the directory where `peyda`
 was executed. If you pass `--output-dir ~/recon-output`, Peyda writes to
 `~/recon-output/results/` and `~/recon-output/runs/`.
 
-## Profiles
+## Default Recon Mode
 
-Profiles are safe presets. Use them when you do not want to tune every option manually.
+Peyda has one default recon mode. It is intentionally thorough while still
+applying conservative rate limits.
 
-| Profile | Best for | Behavior |
-| --- | --- | --- |
-| `passive` | First look, scope expansion, low-noise inventory | Passive subdomain discovery and normalization only |
-| `balanced` | Normal bug bounty recon | DNS, HTTP, JS, API, cloud hints, depth-1 crawl, moderate caps |
-| `deep` | Large scopes or dedicated review windows | Exhaustive crawl caps with slower, rate-limit-aware probing |
-
-`balance` is also accepted as an alias for `balanced`.
-
-Balanced defaults:
-
-```json
-{
-  "probe_rate": 50,
-  "crawl_rate": 10,
-  "crawl_depth": 1,
-  "crawl_duration": "45s",
-  "max_domain_pages": 75,
-  "api_rate": 20,
-  "port_rate": 50
-}
-```
-
-Deep defaults:
+Default limits:
 
 ```json
 {
@@ -360,33 +327,34 @@ Deep defaults:
 }
 ```
 
-Deep mode is intentionally slower. It favors broader coverage across live subdomains and deeper crawling over speed, which makes it better for long authorized recon windows.
+This mode favors broader coverage across live subdomains and extensive crawling
+over speed, which makes it better for authorized recon windows where completeness
+matters.
 
-### Profile Intensity
+### Tool Intensity
 
-Profiles tune both workflow depth and the underlying tool flags.
+The default mode tunes both workflow depth and the underlying tool flags.
 
-| Tool | `passive` | `balanced` | `deep` |
-| --- | --- | --- | --- |
-| `whois` | Standard lookup | Standard lookup | Verbose lookup with `--verbose` |
-| `dig` | Baseline DNS records | A, AAAA, MX, NS, TXT, SOA, CAA | Baseline records plus DNSSEC-oriented records, delegation trace, and NS search |
-| `subfinder` | Passive sources | `-all -recursive`, normal timeout | `-all -recursive`, longer timeout and max-time |
-| `dnsx` | Skipped | A records with responses | A, AAAA, CNAME, NS, MX, TXT, SOA, CAA with trace |
-| `httpx` | Skipped | Parse-friendly live probing | Parse-friendly live probing plus rich JSONL fingerprinting |
-| `naabu` | Skipped | Top 1000 ports with service hints | Full port range, all resolved IPs, verification, passive hints, service/version discovery |
-| `nmap` | Skipped | Service enrichment for discovered ports | Service enrichment for discovered ports |
-| `gau` | Skipped | All providers with moderate retry/timeout | All providers with higher retry/timeout and lower threading |
-| `katana` | Skipped | Scoped JavaScript-aware crawl | Headless crawl, XHR extraction, JSLuice, forms, known files, path climb, knowledge base |
-| `Arjun` | Skipped | Optional parameter probing | Optional parameter probing after URL normalization |
-| `xnLinkFinder` | Skipped | Optional JavaScript endpoint extraction | Optional JavaScript endpoint extraction after JS download |
+| Tool | Default behavior |
+| --- | --- |
+| `whois` | Verbose lookup with `--verbose` |
+| `dig` | Baseline records plus DNSSEC-oriented records, delegation trace, and NS search |
+| `subfinder` | `-all -recursive`, longer timeout and max-time |
+| `dnsx` | A, AAAA, CNAME, NS, MX, TXT, SOA, CAA with trace |
+| `httpx` | Parse-friendly live probing plus rich JSONL fingerprinting |
+| `naabu` | Full port range, all resolved IPs, verification, provider hints, service/version discovery |
+| `nmap` | Service enrichment for discovered ports |
+| `gau` | All providers with higher retry/timeout and lower threading |
+| `katana` | Headless crawl, XHR extraction, JSLuice, forms, known files, path climb, knowledge base |
+| `Arjun` | Optional parameter probing after URL normalization |
+| `xnLinkFinder` | Optional JavaScript endpoint extraction after JS download |
 
 ## Configuration Model
 
-`peyda` has three configuration layers:
+`peyda` has two configuration layers:
 
 | Layer | Use it for | Example |
 | --- | --- | --- |
-| Profile | Pick a safe preset | `--profile balanced` |
 | CLI flags | Change common run settings quickly | `-p 25 --crawl-duration 30s` |
 | JSON config | Tune the underlying tools | `tools.katana.strategy = "breadth-first"` |
 
@@ -396,7 +364,6 @@ Precedence:
 built-in defaults
   -> JSON config
   -> CLI flags for common top-level run options
-  -> profile defaults fill missing values
 ```
 
 Tool settings are optional. If you only override one tool field, the remaining defaults stay enabled.
@@ -423,45 +390,19 @@ Edit:
 
 Only use domains that are explicitly in scope.
 
-### 3. Choose a profile
-
-For normal recon:
-
-```json
-{
-  "profile": "balanced"
-}
-```
-
-For passive discovery only:
-
-```json
-{
-  "profile": "passive"
-}
-```
-
-For deeper authorized recon:
-
-```json
-{
-  "profile": "deep"
-}
-```
-
-### 4. Tune run limits
+### 3. Tune run limits
 
 Example: keep the run polite and bounded.
 
 ```json
 {
   "probe_rate": 25,
-  "crawl_rate": 10,
-  "crawl_depth": 1,
-  "crawl_duration": "45s",
-  "max_domain_pages": 75,
-  "api_rate": 20,
-  "port_rate": 50
+  "crawl_rate": 5,
+  "crawl_depth": 5,
+  "crawl_duration": "30m",
+  "max_domain_pages": 5000,
+  "api_rate": 10,
+  "port_rate": 25
 }
 ```
 
@@ -477,7 +418,7 @@ Meaning:
 | `api_rate` | Rate limit for API docs/schema probing |
 | `port_rate` | Rate limit for Naabu port probing |
 
-### 5. Tune tool behavior
+### 4. Tune tool behavior
 
 The `tools` section controls how `peyda` calls each recon stage. Helpers such as
 `whois`, `dig`, `naabu`, `nmap`, `gau`, `Arjun`, and `xnLinkFinder` are detected
@@ -487,24 +428,24 @@ automatically and skipped gracefully if they are not installed.
 {
   "tools": {
     "whois": {
-      "verbose": false
+      "verbose": true
     },
     "dig": {
-      "record_types": ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CAA"],
-      "trace": false,
-      "nssearch": false
+      "record_types": ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CAA", "DNSKEY", "DS"],
+      "trace": true,
+      "nssearch": true
     },
     "subfinder": {
       "all": true,
       "recursive": true,
-      "timeout": 30,
-      "max_time": 10
+      "timeout": 120,
+      "max_time": 60
     },
     "dnsx": {
-      "record_types": ["a"],
+      "record_types": ["a", "aaaa", "cname", "ns", "mx", "txt", "soa", "caa"],
       "response": true,
       "recon": false,
-      "trace": false
+      "trace": true
     },
     "httpx": {
       "follow_redirects": true,
@@ -513,54 +454,54 @@ automatically and skipped gracefully if they are not installed.
       "content_length": true,
       "content_type": true,
       "tech_detect": true,
-      "web_server": false,
-      "ip": false,
-      "cname": false,
-      "asn": false,
+      "web_server": true,
+      "ip": true,
+      "cname": true,
+      "asn": true,
       "cdn": true,
-      "response_time": false,
-      "http2": false,
-      "pipeline": false,
-      "tls_probe": false,
-      "tls_grab": false,
-      "probe_all_ips": false,
-      "retries": 1,
-      "timeout": 10
+      "response_time": true,
+      "http2": true,
+      "pipeline": true,
+      "tls_probe": true,
+      "tls_grab": true,
+      "probe_all_ips": true,
+      "retries": 2,
+      "timeout": 20
     },
     "naabu": {
-      "top_ports": "1000",
-      "scan_all_ips": false,
+      "top_ports": "full",
+      "scan_all_ips": true,
       "service_discovery": true,
-      "service_version": false,
-      "verify": false,
-      "passive": false
+      "service_version": true,
+      "verify": true,
+      "passive": true
     },
     "gau": {
       "subs": true,
       "providers": ["wayback", "commoncrawl", "otx", "urlscan"],
-      "retries": 2,
-      "timeout": 60,
-      "threads": 2
+      "retries": 5,
+      "timeout": 120,
+      "threads": 1
     },
     "katana": {
       "js_crawl": true,
       "ignore_query_params": true,
       "filter_similar": true,
-      "known_files": "",
+      "known_files": "all",
       "field_scope": "rdn",
       "strategy": "depth-first",
-      "headless": false,
-      "xhr_extraction": false,
+      "headless": true,
+      "xhr_extraction": true,
       "display_out_scope": false,
-      "jsluice": false,
-      "form_extraction": false,
-      "tech_detect": false,
-      "path_climb": false,
-      "knowledge_base": false,
+      "jsluice": true,
+      "form_extraction": true,
+      "tech_detect": true,
+      "path_climb": true,
+      "knowledge_base": true,
       "store_field": "",
-      "concurrency": 10,
-      "parallelism": 10,
-      "host_rate_limit": 0
+      "concurrency": 5,
+      "parallelism": 5,
+      "host_rate_limit": 2
     },
     "arjun": {
       "enabled": true
@@ -572,7 +513,7 @@ automatically and skipped gracefully if they are not installed.
 }
 ```
 
-### 6. Run with the config
+### 5. Run with the config
 
 ```bash
 peyda run --config peyda.json
@@ -604,7 +545,7 @@ Maps to:
 whois --verbose example.com
 ```
 
-Deep profile enables verbose WHOIS automatically.
+Verbose WHOIS is enabled by default.
 
 ### Dig
 
@@ -629,7 +570,7 @@ dig +trace example.com
 dig +nssearch example.com
 ```
 
-Deep profile adds DNSSEC-oriented records, delegation trace, and NS search.
+DNSSEC-oriented records, delegation trace, and NS search are enabled by default.
 
 ### Subfinder
 
@@ -805,7 +746,7 @@ naabu -list normalized/resolved-hosts.txt \
   -o raw/naabu.txt
 ```
 
-Deep profile uses the full port set and lower rate by default.
+The full port set and lower rate are enabled by default.
 
 ### Gau
 
@@ -832,8 +773,8 @@ gau --subs \
   example.com
 ```
 
-Deep profile uses higher retry/timeout values and fewer threads to reduce noisy
-provider failures.
+Higher retry/timeout values and fewer threads are enabled by default to reduce
+noisy provider failures.
 
 ### Katana
 
@@ -1001,12 +942,11 @@ Only change the target:
 }
 ```
 
-Polite balanced recon:
+Polite custom run:
 
 ```json
 {
   "target": "example.com",
-  "profile": "balanced",
   "probe_rate": 25,
   "crawl_duration": "30s",
   "max_domain_pages": 50
@@ -1018,7 +958,6 @@ API-focused recon:
 ```json
 {
   "target": "example.com",
-  "profile": "balanced",
   "api_rate": 10,
   "tools": {
     "httpx": {
@@ -1097,9 +1036,9 @@ jq -r 'select(.type=="js_route") | .value' "$latest_run/normalized/recon-events.
 
 ```text
 cmd/peyda/         CLI entry point
-internal/config/    JSON config, profiles, and tool defaults
+internal/config/    JSON config and tool defaults
 internal/deps/      Dependency orchestration
-internal/reconrun/  Native run setup and profile orchestration
+internal/reconrun/  Native run setup and pipeline orchestration
 internal/report/    Text, JSONL, and Markdown report generation
 internal/subdomain/ Subdomain collection, probing, and scoring
 internal/apidiscovery/ API candidate discovery and OpenAPI parsing

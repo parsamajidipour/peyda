@@ -17,11 +17,10 @@ import (
 )
 
 type Options struct {
-	RunDir  string
-	Profile string
-	Rate    int
-	Tools   config.Tools
-	Out     io.Writer
+	RunDir string
+	Rate   int
+	Tools  config.Tools
+	Out    io.Writer
 }
 
 type Result struct {
