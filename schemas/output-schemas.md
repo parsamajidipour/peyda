@@ -94,7 +94,7 @@ Produced by `scripts/js-recon-pass.sh`.
 
 ## `notes/cloud-candidates.tsv`
 
-Produced by `scripts/cloud-candidate-pass.sh`.
+Produced by `reconx run` in `balanced` and `deep` profiles.
 
 | Column | Meaning |
 | --- | --- |

@@ -84,6 +84,7 @@ internal/reconrun/ Native run setup and profile orchestration
 internal/report/   JSONL and Markdown report generation
 internal/subdomain/ Native subdomain collection, probing, and scoring
 internal/apidiscovery/ Native API candidate discovery and OpenAPI parsing
+internal/cloud/    Native cloud and secret-looking lead extraction
 scripts/           External engine adapters
 playbooks/         Manual review methodology
 docs/              CLI design notes

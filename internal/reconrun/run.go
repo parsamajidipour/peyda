@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/parsamajidipour/reconx/internal/apidiscovery"
+	"github.com/parsamajidipour/reconx/internal/cloud"
 	"github.com/parsamajidipour/reconx/internal/config"
 	"github.com/parsamajidipour/reconx/internal/deps"
 	"github.com/parsamajidipour/reconx/internal/report"
@@ -59,7 +60,7 @@ func Run(root string, cfg config.Config) error {
 		if _, err := apidiscovery.Run(apidiscovery.Options{Root: root, RunDir: runDir, ProbeRate: cfg.APIRate}); err != nil {
 			return err
 		}
-		if err := deps.RunCommand(root, os.Stdout, "scripts/cloud-candidate-pass.sh", "-r", runDir); err != nil {
+		if _, err := cloud.Run(runDir); err != nil {
 			return err
 		}
 	}
