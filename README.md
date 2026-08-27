@@ -26,6 +26,7 @@ After a run, the stable public output contract is:
 
 ```text
 results/example.com/
+├── recon.txt
 ├── subdomains.txt
 ├── resolved.txt
 ├── live.txt
@@ -42,10 +43,13 @@ results/example.com/
 └── summary.json
 ```
 
-These files are meant to be piped into other tools, reviewed manually, or archived as a clean dataset.
+`recon.txt` is the comprehensive human-readable report. The other files are
+stable, focused datasets meant to be piped into tools, reviewed manually, or
+archived.
 
 | File | Contains |
 | --- | --- |
+| `recon.txt` | Complete plain-text recon report with summary, WHOIS, DNS, HTTP, ports, URLs, parameters, JavaScript, endpoints, and agent handoff notes |
 | `subdomains.txt` | Unique in-scope hostnames discovered for the target |
 | `resolved.txt` | In-scope hostnames that resolved through DNS |
 | `live.txt` | Reachable HTTP/S URLs with the working scheme preserved |
@@ -168,6 +172,7 @@ The main dataset is immediately available at:
 
 ```bash
 ls results/example.com/
+less results/example.com/recon.txt
 ```
 
 Compatibility with the explicit `run` command remains:
@@ -260,6 +265,7 @@ The final dataset:
 
 ```text
 results/example.com/
+├── recon.txt
 ├── subdomains.txt
 ├── resolved.txt
 ├── live.txt
@@ -363,7 +369,7 @@ The default mode tunes both workflow depth and the underlying tool flags.
 | `gau` | All providers with higher retry/timeout and lower threading |
 | `katana` | Deep crawl, JavaScript crawl, XHR extraction, forms, known files, path climb, scoped filtering |
 | `Arjun` | Optional parameter probing after URL normalization with quiet output, bounded request timeout, and controlled rate |
-| `xnLinkFinder` | Optional JavaScript endpoint extraction after JS download with bounded local processing |
+| `xnLinkFinder` | Optional JavaScript endpoint enrichment after native extraction and JS download |
 
 ## Configuration Model
 
@@ -944,8 +950,16 @@ xnLinkFinder -i raw/js \
   -ow -ascii-only -t 10 -p 5
 ```
 
-Native JavaScript route extraction still runs as a fallback, so endpoint output
-does not depend on `xnLinkFinder` succeeding.
+Native JavaScript route extraction runs before `xnLinkFinder`, so endpoint output
+does not depend on `xnLinkFinder` succeeding. Peyda extracts API-like absolute
+URLs, relative routes, WebSocket/GraphQL paths, Next.js app routes, and simple
+JavaScript constructions such as:
+
+```js
+const API = "https://app.example.com/api/v2";
+const USERS = API + "/users";
+const LOGIN = "".concat(API, "/auth/login");
+```
 
 ## Workflow Graph
 
@@ -1043,11 +1057,38 @@ Start with the final dataset:
 
 ```bash
 cd results/example.com
+less recon.txt
 wc -l subdomains.txt resolved.txt live.txt ips.txt ports.txt urls.txt parameters.txt javascript.txt endpoints.txt
 jq . summary.json
 ```
 
-Open the internal text report when you need run details:
+`recon.txt` is the best single file to hand to a reviewer, paste into a private
+agent, or attach to your own notes. It keeps the focused files available while
+also showing the full target story in one place:
+
+```text
+PEYDA RECON REPORT
+==============================================================================
+Target             example.com
+Completed at       2026-08-27T12:00:00Z
+Duration           2m41s
+
+==============================================================================
+HUNTING QUEUES
+==============================================================================
+High-signal endpoints
+---------------------
+[QUEUE] [endpoint] /api/v1/users
+[QUEUE] [endpoint] /admin/login
+
+==============================================================================
+ENDPOINTS
+==============================================================================
+[JS-ENDPOINT] [api,auth,relative] /api/v1/auth/login
+[JS-ENDPOINT] [api,absolute] https://api.example.com/v2/users
+```
+
+Open the internal run report when you need raw tool troubleshooting details:
 
 ```bash
 latest_run="$(ls -td runs/example.com/* | head -1)"

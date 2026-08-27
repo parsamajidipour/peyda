@@ -72,6 +72,17 @@ type TechnologyAsset struct {
 	Technologies []string `json:"technologies"`
 }
 
+type WHOISField struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type ParameterAsset struct {
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	Source string `json:"source"`
+}
+
 type PortAsset struct {
 	Host    string `json:"host"`
 	Port    int    `json:"port"`
@@ -81,6 +92,8 @@ type PortAsset struct {
 
 type builtDataset struct {
 	Target       string
+	WHOIS        []WHOISField
+	RawWHOIS     []string
 	Subdomains   []string
 	Resolved     []string
 	Live         []string
@@ -88,11 +101,16 @@ type builtDataset struct {
 	Ports        []PortAsset
 	URLs         []string
 	Parameters   []string
+	ParamDetails []ParameterAsset
 	JavaScript   []string
 	Endpoints    []string
 	DNS          []DNSAsset
 	HTTP         []HTTPAsset
 	Technologies []TechnologyAsset
+	APIMethods   []string
+	CloudSignals []string
+	JSSignals    []string
+	SourceMaps   []string
 }
 
 func Export(opts Options) (Summary, error) {
@@ -139,7 +157,7 @@ func Export(opts Options) (Summary, error) {
 		ResultDir:       resultDir,
 	}
 
-	if err := writeTextFiles(tempDir, ds); err != nil {
+	if err := writeTextFiles(tempDir, ds, summary, opts.RunDir); err != nil {
 		return Summary{}, err
 	}
 	if err := writeJSONAtomic(filepath.Join(tempDir, "dns.json"), ds.DNS); err != nil {
@@ -168,6 +186,7 @@ func Export(opts Options) (Summary, error) {
 }
 
 func build(runDir, target string) builtDataset {
+	whois := buildWHOIS(runDir)
 	dns := buildDNS(runDir, target)
 	subdomains := scopedHosts(target, readLines(filepath.Join(runDir, "normalized/subdomains.txt")))
 	subdomains = addSortedUnique(subdomains, target)
@@ -194,12 +213,15 @@ func build(runDir, target string) builtDataset {
 		subdomains = addSortedUnique(subdomains, host)
 	}
 	parameters := buildParameters(runDir, urls)
+	paramDetails := buildParameterAssets(runDir)
 	javascript := scopedJS(target, readLines(filepath.Join(runDir, "normalized/js-files.txt")))
 	endpoints := scopedEndpoints(target, readLines(filepath.Join(runDir, "normalized/js-endpoints.txt")))
 	technologies := buildTechnologies(httpAssets)
 
 	return builtDataset{
 		Target:       target,
+		WHOIS:        whois,
+		RawWHOIS:     readLines(filepath.Join(runDir, "raw/whois.txt")),
 		Subdomains:   subdomains,
 		Resolved:     resolved,
 		Live:         live,
@@ -207,15 +229,20 @@ func build(runDir, target string) builtDataset {
 		Ports:        ports,
 		URLs:         urls,
 		Parameters:   parameters,
+		ParamDetails: paramDetails,
 		JavaScript:   javascript,
 		Endpoints:    endpoints,
 		DNS:          dns,
 		HTTP:         httpAssets,
 		Technologies: technologies,
+		APIMethods:   dataLines(filepath.Join(runDir, "normalized/api-inventory.tsv")),
+		CloudSignals: dataLines(filepath.Join(runDir, "notes/cloud-candidates.tsv")),
+		JSSignals:    readLines(filepath.Join(runDir, "normalized/js-interesting-lines.txt")),
+		SourceMaps:   readLines(filepath.Join(runDir, "normalized/source-map-candidates.txt")),
 	}
 }
 
-func writeTextFiles(dir string, ds builtDataset) error {
+func writeTextFiles(dir string, ds builtDataset, summary Summary, runDir string) error {
 	files := map[string][]string{
 		"subdomains.txt": ds.Subdomains,
 		"resolved.txt":   ds.Resolved,
@@ -232,7 +259,401 @@ func writeTextFiles(dir string, ds builtDataset) error {
 			return err
 		}
 	}
-	return nil
+	return os.WriteFile(filepath.Join(dir, "recon.txt"), []byte(renderReconText(ds, summary, runDir)), 0o644)
+}
+
+func buildWHOIS(runDir string) []WHOISField {
+	var out []WHOISField
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/whois.tsv")) {
+		key := strings.TrimSpace(row["key"])
+		value := strings.TrimSpace(row["value"])
+		if key == "" || value == "" {
+			continue
+		}
+		out = append(out, WHOISField{Key: key, Value: value})
+	}
+	return out
+}
+
+func buildParameterAssets(runDir string) []ParameterAsset {
+	seen := map[string]ParameterAsset{}
+	for _, row := range readTSV(filepath.Join(runDir, "normalized/parameters.tsv")) {
+		name := normalizeParam(row["name"])
+		if name == "" {
+			continue
+		}
+		item := ParameterAsset{
+			Name:   name,
+			URL:    strings.TrimSpace(row["url"]),
+			Source: strings.TrimSpace(row["source"]),
+		}
+		key := item.Name + "\t" + item.URL + "\t" + item.Source
+		seen[key] = item
+	}
+	keys := sortedKeysFromParameterAssets(seen)
+	out := make([]ParameterAsset, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, seen[key])
+	}
+	return out
+}
+
+func renderReconText(ds builtDataset, summary Summary, runDir string) string {
+	var b strings.Builder
+	line := strings.Repeat("=", 78)
+	thin := strings.Repeat("-", 78)
+
+	fmt.Fprintln(&b, "PEYDA RECON REPORT")
+	fmt.Fprintln(&b, line)
+	fmt.Fprintf(&b, "%-18s %s\n", "Target", summary.Target)
+	fmt.Fprintf(&b, "%-18s %s\n", "Completed at", summary.CompletedAt)
+	fmt.Fprintf(&b, "%-18s %s\n", "Duration", formatDuration(time.Duration(summary.DurationSeconds*float64(time.Second))))
+	fmt.Fprintf(&b, "%-18s %s\n", "Results", displayPath(summary.ResultDir))
+	fmt.Fprintf(&b, "%-18s %s\n", "Run artifacts", displayPath(runDir))
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "This file is a human-readable and agent-friendly consolidation of Peyda's")
+	fmt.Fprintln(&b, "normalized recon dataset. Validate authorization and scope before acting on")
+	fmt.Fprintln(&b, "any target, host, URL, port, or endpoint listed here.")
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "SUMMARY")
+	fmt.Fprintf(&b, "%-18s %d\n", "Subdomains", len(ds.Subdomains))
+	fmt.Fprintf(&b, "%-18s %d\n", "Resolved", len(ds.Resolved))
+	fmt.Fprintf(&b, "%-18s %d\n", "Live hosts", len(ds.Live))
+	fmt.Fprintf(&b, "%-18s %d\n", "IPs", len(ds.IPs))
+	fmt.Fprintf(&b, "%-18s %d\n", "Open ports", len(ds.Ports))
+	fmt.Fprintf(&b, "%-18s %d\n", "URLs", len(ds.URLs))
+	fmt.Fprintf(&b, "%-18s %d\n", "Parameters", len(ds.Parameters))
+	fmt.Fprintf(&b, "%-18s %d\n", "JavaScript", len(ds.JavaScript))
+	fmt.Fprintf(&b, "%-18s %d\n", "Endpoints", len(ds.Endpoints))
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "HUNTING QUEUES")
+	writeReconQueue(&b, "High-signal endpoints", highSignalEndpoints(ds.Endpoints), "[QUEUE] [endpoint]", 50)
+	writeReconQueue(&b, "Parameterized URLs", parameterizedURLs(ds.URLs), "[QUEUE] [param-url]", 50)
+	writeReconQueue(&b, "Admin/Auth/Login URLs", authLikeURLs(ds.URLs), "[QUEUE] [auth-url]", 50)
+	writeReconQueue(&b, "Interesting live hosts", interestingHTTP(ds.HTTP), "[QUEUE] [host]", 50)
+
+	writeReconSection(&b, "WHOIS")
+	if len(ds.WHOIS) == 0 {
+		writeNone(&b)
+	} else {
+		for _, field := range ds.WHOIS {
+			fmt.Fprintf(&b, "[WHOIS] [%s] %s\n", field.Key, field.Value)
+		}
+	}
+	if len(ds.RawWHOIS) > 0 {
+		fmt.Fprintln(&b)
+		fmt.Fprintln(&b, "RAW WHOIS")
+		fmt.Fprintln(&b, thin)
+		for _, line := range ds.RawWHOIS {
+			fmt.Fprintf(&b, "%s\n", line)
+		}
+	}
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "DNS")
+	if len(ds.DNS) == 0 {
+		writeNone(&b)
+	} else {
+		for _, record := range ds.DNS {
+			writeDNSValues(&b, record.Host, "A", record.A)
+			writeDNSValues(&b, record.Host, "AAAA", record.AAAA)
+			writeDNSValues(&b, record.Host, "CNAME", record.CNAME)
+			writeDNSValues(&b, record.Host, "MX", record.MX)
+			writeDNSValues(&b, record.Host, "NS", record.NS)
+			writeDNSValues(&b, record.Host, "TXT", record.TXT)
+			writeDNSValues(&b, record.Host, "SOA", record.SOA)
+			writeDNSValues(&b, record.Host, "CAA", record.CAA)
+			writeDNSValues(&b, record.Host, "DNSKEY", record.DNSKEY)
+			writeDNSValues(&b, record.Host, "DS", record.DS)
+		}
+	}
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "SUBDOMAINS")
+	writeReconList(&b, "All discovered in-scope hosts", ds.Subdomains, "[SUB]")
+	writeReconList(&b, "Resolved hosts", ds.Resolved, "[RESOLVED]")
+	writeReconList(&b, "Observed IPs", ds.IPs, "[IP]")
+
+	writeReconSection(&b, "HTTP SERVICES")
+	if len(ds.HTTP) == 0 {
+		writeNone(&b)
+	} else {
+		for _, asset := range ds.HTTP {
+			status := "-"
+			if asset.Status > 0 {
+				status = strconv.Itoa(asset.Status)
+			}
+			tech := "-"
+			if len(asset.Technologies) > 0 {
+				tech = strings.Join(asset.Technologies, ",")
+			}
+			title := strings.TrimSpace(asset.Title)
+			if title == "" {
+				title = "-"
+			}
+			fmt.Fprintf(&b, "[HTTP] [%s] [%s] %s | %s\n", status, tech, asset.URL, title)
+		}
+	}
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "OPEN PORTS")
+	if len(ds.Ports) == 0 {
+		writeNone(&b)
+	} else {
+		for _, port := range ds.Ports {
+			service := port.Service
+			if service == "" {
+				service = "unknown"
+			}
+			source := port.Source
+			if source == "" {
+				source = "unknown"
+			}
+			fmt.Fprintf(&b, "[PORT] [%d/%s] %s | source=%s\n", port.Port, service, port.Host, source)
+		}
+	}
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "URLS")
+	writeReconList(&b, "Historical and crawled URLs", ds.URLs, "[URL]")
+
+	writeReconSection(&b, "PARAMETERS")
+	if len(ds.ParamDetails) > 0 {
+		for _, param := range ds.ParamDetails {
+			source := param.Source
+			if source == "" {
+				source = "unknown"
+			}
+			if param.URL == "" {
+				fmt.Fprintf(&b, "[PARAM] [%s] source=%s\n", param.Name, source)
+			} else {
+				fmt.Fprintf(&b, "[PARAM] [%s] %s | source=%s\n", param.Name, param.URL, source)
+			}
+		}
+	} else {
+		writeReconList(&b, "Parameter names", ds.Parameters, "[PARAM]")
+	}
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "JAVASCRIPT")
+	writeReconList(&b, "JavaScript files", ds.JavaScript, "[JS]")
+	writeReconList(&b, "Source map candidates", ds.SourceMaps, "[SOURCE-MAP]")
+	writeReconList(&b, "High-signal JavaScript lines", ds.JSSignals, "[JS-SIGNAL]")
+
+	writeReconSection(&b, "ENDPOINTS")
+	if len(ds.Endpoints) == 0 {
+		writeNone(&b)
+	} else {
+		for _, endpoint := range ds.Endpoints {
+			fmt.Fprintf(&b, "[JS-ENDPOINT] [%s] %s\n", endpointTags(endpoint), endpoint)
+		}
+	}
+	fmt.Fprintln(&b)
+
+	writeReconSection(&b, "API AND CLOUD SIGNALS")
+	writeReconList(&b, "API inventory rows", ds.APIMethods, "[API]")
+	writeReconList(&b, "Cloud and secret-looking candidates", ds.CloudSignals, "[CLOUD]")
+
+	writeReconSection(&b, "AGENT HANDOFF")
+	fmt.Fprintln(&b, "[NEXT] Review live hosts and HTTP metadata before endpoint testing.")
+	fmt.Fprintln(&b, "[NEXT] Prioritize auth, admin, user/account, upload, export, webhook, and API routes.")
+	fmt.Fprintln(&b, "[NEXT] Treat cloud and secret-looking strings as leads; validate ownership first.")
+	fmt.Fprintln(&b, "[NEXT] Use JSON/TXT sibling files for automation and this file for context.")
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, line)
+	return b.String()
+}
+
+func writeReconSection(b *strings.Builder, title string) {
+	fmt.Fprintln(b)
+	fmt.Fprintln(b, strings.Repeat("=", 78))
+	fmt.Fprintln(b, title)
+	fmt.Fprintln(b, strings.Repeat("=", 78))
+}
+
+func writeReconList(b *strings.Builder, title string, values []string, prefix string) {
+	fmt.Fprintf(b, "%s\n", title)
+	fmt.Fprintln(b, strings.Repeat("-", len(title)))
+	if len(values) == 0 {
+		writeNone(b)
+		fmt.Fprintln(b)
+		return
+	}
+	for _, value := range values {
+		fmt.Fprintf(b, "%s %s\n", prefix, value)
+	}
+	fmt.Fprintln(b)
+}
+
+func writeReconQueue(b *strings.Builder, title string, values []string, prefix string, limit int) {
+	fmt.Fprintf(b, "%s\n", title)
+	fmt.Fprintln(b, strings.Repeat("-", len(title)))
+	if len(values) == 0 {
+		writeNone(b)
+		fmt.Fprintln(b)
+		return
+	}
+	fmt.Fprintf(b, "Total candidates: %d\n", len(values))
+	shown := values
+	if limit > 0 && len(values) > limit {
+		shown = values[:limit]
+	}
+	for _, value := range shown {
+		fmt.Fprintf(b, "%s %s\n", prefix, value)
+	}
+	if len(shown) < len(values) {
+		fmt.Fprintf(b, "[MORE] Showing %d of %d. Full data is available in the detailed sections below.\n", len(shown), len(values))
+	}
+	fmt.Fprintln(b)
+}
+
+func writeNone(b *strings.Builder) {
+	fmt.Fprintln(b, "[NONE] No data collected.")
+}
+
+func writeDNSValues(b *strings.Builder, host, recordType string, values []string) {
+	for _, value := range values {
+		fmt.Fprintf(b, "[DNS] [%s] %s -> %s\n", recordType, host, value)
+	}
+}
+
+func highSignalEndpoints(endpoints []string) []string {
+	re := regexp.MustCompile(`(?i)(api|auth|login|signin|signup|admin|internal|user|account|member|upload|export|webhook|token|billing|cars/search|filters?|details?)`)
+	return filterStrings(endpoints, func(value string) bool {
+		return re.MatchString(value)
+	})
+}
+
+func parameterizedURLs(urls []string) []string {
+	return filterStrings(urls, func(value string) bool {
+		parsed, err := url.Parse(value)
+		return err == nil && parsed.RawQuery != "" && !isStaticURLPath(parsed.Path)
+	})
+}
+
+func authLikeURLs(urls []string) []string {
+	re := regexp.MustCompile(`(?i)(auth|login|logout|signin|signup|reset|password|admin|account|user|member)`)
+	return filterStrings(urls, func(value string) bool {
+		parsed, err := url.Parse(value)
+		if err != nil || isStaticURLPath(parsed.Path) {
+			return false
+		}
+		return re.MatchString(value)
+	})
+}
+
+func interestingHTTP(assets []HTTPAsset) []string {
+	var out []string
+	re := regexp.MustCompile(`(?i)(admin|auth|login|dashboard|api|staging|dev|test|upload|docs|swagger|graphql)`)
+	for _, asset := range assets {
+		if re.MatchString(asset.Host + " " + asset.URL + " " + asset.Title + " " + strings.Join(asset.Technologies, ",")) {
+			out = append(out, fmt.Sprintf("%s [%d] %s", asset.URL, asset.Status, strings.Join(asset.Technologies, ",")))
+		}
+	}
+	return out
+}
+
+func endpointTags(endpoint string) string {
+	lower := strings.ToLower(endpoint)
+	tags := []string{}
+	add := func(name, pattern string) {
+		if regexp.MustCompile(pattern).MatchString(lower) {
+			tags = append(tags, name)
+		}
+	}
+	add("api", `(^|/)api(/|$)|/v[0-9]+`)
+	add("auth", `auth|login|logout|signin|signup|password|oauth`)
+	add("admin", `admin|internal`)
+	add("user", `user|account|member`)
+	add("data", `search|filter|details|export`)
+	add("dynamic", `[:{][a-z0-9_ -]+[}]?`)
+	if strings.Contains(endpoint, "?") {
+		tags = append(tags, "query")
+	}
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		tags = append(tags, "absolute")
+	} else {
+		tags = append(tags, "relative")
+	}
+	if len(tags) == 0 {
+		return "route"
+	}
+	return strings.Join(uniqueSorted(tags), ",")
+}
+
+func filterStrings(values []string, keep func(string) bool) []string {
+	var out []string
+	for _, value := range values {
+		if keep(value) {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func isStaticURLPath(path string) bool {
+	lower := strings.ToLower(path)
+	for _, ext := range []string{
+		".js", ".mjs", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico",
+		".woff", ".woff2", ".ttf", ".eot", ".map", ".pdf", ".zip", ".mp4", ".mp3",
+	} {
+		if strings.HasSuffix(lower, ext) || strings.Contains(lower, ext+"?") {
+			return true
+		}
+	}
+	return strings.Contains(lower, "/assets/") ||
+		strings.Contains(lower, "/_next/static/") ||
+		strings.Contains(lower, "/_next/image")
+}
+
+func dataLines(path string) []string {
+	lines := readLines(path)
+	if len(lines) <= 1 {
+		return nil
+	}
+	return lines[1:]
+}
+
+func displayPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	base, err := filepath.Abs(".")
+	if err != nil {
+		return path
+	}
+	if rel, err := filepath.Rel(base, path); err == nil && !strings.HasPrefix(rel, "..") && rel != "." {
+		return rel
+	}
+	return path
+}
+
+func formatDuration(duration time.Duration) string {
+	if duration <= 0 {
+		return "0s"
+	}
+	duration = duration.Round(time.Second)
+	hours := int(duration.Hours())
+	minutes := int(duration.Minutes()) % 60
+	seconds := int(duration.Seconds()) % 60
+	if hours > 0 {
+		return fmt.Sprintf("%dh%dm%ds", hours, minutes, seconds)
+	}
+	if minutes > 0 {
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	}
+	return fmt.Sprintf("%ds", seconds)
+}
+
+func sortedKeysFromParameterAssets(values map[string]ParameterAsset) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func buildPorts(runDir, target string) []PortAsset {

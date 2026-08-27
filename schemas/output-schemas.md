@@ -8,6 +8,7 @@ This is the stable public dataset produced by `peyda example.com`.
 
 ```text
 results/example.com/
+├── recon.txt
 ├── subdomains.txt
 ├── resolved.txt
 ├── live.txt
@@ -24,10 +25,13 @@ results/example.com/
 └── summary.json
 ```
 
-Text files contain one deduplicated item per line and are sorted whenever practical.
+`recon.txt` is a comprehensive plain-text report intended for human review,
+presentation, and private agent handoff. The focused text files contain one
+deduplicated item per line and are sorted whenever practical.
 
 | File | Schema |
 | --- | --- |
+| `recon.txt` | Full plain-text report with summary, WHOIS, DNS, HTTP, ports, URLs, parameters, JavaScript, endpoints, and handoff notes |
 | `subdomains.txt` | In-scope hostnames |
 | `resolved.txt` | In-scope hostnames that resolved |
 | `live.txt` | Reachable HTTP/S URLs |
@@ -37,6 +41,24 @@ Text files contain one deduplicated item per line and are sorted whenever practi
 | `parameters.txt` | Parameter names only |
 | `javascript.txt` | In-scope JavaScript URLs |
 | `endpoints.txt` | Relative endpoints or in-scope absolute HTTP/S/WebSocket URLs |
+
+`recon.txt` uses a stable tagged plain-text format:
+
+```text
+PEYDA RECON REPORT
+==============================================================================
+Target             example.com
+
+[WHOIS] [registrar] Example Registrar
+[DNS] [A] example.com -> 1.2.3.4
+[SUB] api.example.com
+[HTTP] [200] [Go,nginx] https://api.example.com | API
+[PORT] [443/https] api.example.com | source=naabu,nmap
+[URL] https://api.example.com/users?id=1
+[PARAM] [id] https://api.example.com/users?id= | source=url
+[JS] https://example.com/assets/app.js
+[JS-ENDPOINT] [api,relative] /api/v1/users
+```
 
 `dns.json` is an array of host records:
 
@@ -203,7 +225,11 @@ Produced by `peyda run` from URL query strings and optional `Arjun` output.
 
 ## `normalized/js-endpoints.txt`
 
-Produced by `peyda run` from `xnLinkFinder` and native JavaScript route extraction.
+Produced by `peyda run` from native JavaScript route extraction and
+`xnLinkFinder` enrichment. Native extraction understands API-like absolute
+URLs, relative routes, WebSocket/GraphQL paths, Next.js app routes, and simple
+JavaScript string construction such as `API + "/users"` and
+`"".concat(API, "/auth/login")`.
 
 ## `notes/interesting-hosts.txt`
 

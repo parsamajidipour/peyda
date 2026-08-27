@@ -45,7 +45,7 @@ func TestExtractFromRunRedactsSecretsAndFindsRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	interesting, routes, maps := extractFromRun(runDir, nil)
+	interesting, routes, maps := extractFromRun(runDir, nil, nil, "example.com")
 	if len(routes) != 1 || routes[0] != "/api/v1/users/me" {
 		t.Fatalf("routes = %v", routes)
 	}
@@ -54,6 +54,70 @@ func TestExtractFromRunRedactsSecretsAndFindsRoutes(t *testing.T) {
 	}
 	if len(interesting) != 1 || strings.Contains(interesting[0], "AKIA1234567890ABCDEF") {
 		t.Fatalf("interesting line was not redacted: %v", interesting)
+	}
+}
+
+func TestExtractFromRunExpandsConcatenatedAPIEndpoints(t *testing.T) {
+	runDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(runDir, "raw/js"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	js := `let o="https://app.example.com/api/v2",n={BASE:{REGIONS:o?"".concat(o,"/regions"):"",CONTACT_US:o?"".concat(o,"/contact-us"):""},CARS:{MAKES:o?"".concat(o,"/cars/makes"):"",MODELS:o+"/cars/models",SEARCH:o+"/cars/search"}};`
+	if err := os.WriteFile(filepath.Join(runDir, "raw/js/app.js"), []byte(js), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, routes, _ := extractFromRun(runDir, nil, nil, "example.com")
+	got := strings.Join(routes, "\n")
+	for _, want := range []string{
+		"https://app.example.com/api/v2",
+		"https://app.example.com/api/v2/regions",
+		"https://app.example.com/api/v2/contact-us",
+		"https://app.example.com/api/v2/cars/makes",
+		"https://app.example.com/api/v2/cars/models",
+		"https://app.example.com/api/v2/cars/search",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %s in routes:\n%s", want, got)
+		}
+	}
+}
+
+func TestExtractFromRunAddsNextAppRoutesFromJSURLs(t *testing.T) {
+	runDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(runDir, "raw/js"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, routes, _ := extractFromRun(
+		runDir,
+		nil,
+		[]string{"https://www.example.com/_next/static/chunks/app/%5Bcountry%5D/%5Blocale%5D/%5Bsection%5D/page-abc123.js"},
+		"example.com",
+	)
+	if strings.Join(routes, "\n") != "/{country}/{locale}/{section}" {
+		t.Fatalf("routes = %v", routes)
+	}
+}
+
+func TestNormalizeRouteCandidateDropsAssetsAndEncodedNoise(t *testing.T) {
+	for _, raw := range []string{
+		"https://app.example.com/api/v2/landing/banner/banner-home.jpg",
+		"/_next/image",
+		"/%3E%3C/svg%3E",
+		"/([^/]+?",
+		"/a/b",
+	} {
+		if got := normalizeRouteCandidate(raw, "example.com"); got != "" {
+			t.Fatalf("route %q should be dropped, got %q", raw, got)
+		}
+	}
+}
+
+func TestNormalizeRouteCandidateRepairsNextRouteSeparators(t *testing.T) {
+	got := normalizeRouteCandidate("/:country/:localeauth/sign-in", "example.com")
+	if got != "/:country/:locale/auth/sign-in" {
+		t.Fatalf("route = %q", got)
 	}
 }
 

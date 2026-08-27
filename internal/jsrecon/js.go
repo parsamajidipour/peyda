@@ -51,10 +51,15 @@ type Lead struct {
 }
 
 var jsURLPattern = regexp.MustCompile(`https?://[^"'<> )]+\.js[^"'<> )]*|/[^"'<> )]+\.js[^"'<> )]*`)
-var routePattern = regexp.MustCompile(`(/api/[A-Za-z0-9_./{}:-]+|/v[0-9]+/[A-Za-z0-9_./{}:-]+|https?://[^"'<> ]+/(api|graphql|v[0-9])[^"'<> ]*|wss://[^"'<> ]+)`)
+var routePattern = regexp.MustCompile(`(?i)(https?://[^"'<> ]+/(api|graphql|v[0-9]|auth|admin|internal|webhook|oauth)[^"'<> ]*|wss?://[^"'<> ]+|/(api|graphql|v[0-9]|auth|admin|internal|webhook|oauth|login|logout|signin|signup|users?|accounts?|members?|cars|regions|contact-us|ready-car|importer-car)[A-Za-z0-9_./{}\[\]:?=&,%+-]*)`)
+var quotedEndpointPattern = regexp.MustCompile(`["']((?:https?://|wss?://|/)[^"'<>\\ ]{1,500})["']`)
+var assignmentPattern = regexp.MustCompile(`(?:var|let|const)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*["']([^"']{1,500})["']`)
+var concatPattern = regexp.MustCompile(`(?:^|[^\w$])concat\(\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*,\s*["']([^"']{1,500})["']`)
+var plusConcatPattern = regexp.MustCompile(`([A-Za-z_$][A-Za-z0-9_$]*)\s*\+\s*["']([^"']{1,500})["']`)
 var interestingPattern = regexp.MustCompile(`(?i)(/api/|/v[0-9]+/|graphql|websocket|wss://|swagger|openapi|admin|internal|webhook|sourceMappingURL|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|BEGIN PRIVATE KEY|xox[baprs]-|ghp_[A-Za-z0-9_]{30,}|AIza[0-9A-Za-z_-]{20,})`)
 var sourceMapPattern = regexp.MustCompile(`sourceMappingURL=([^"'<> )]+)`)
 var secretRedactPattern = regexp.MustCompile(`(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|BEGIN PRIVATE KEY|xox[baprs]-[A-Za-z0-9-]+|ghp_[A-Za-z0-9_]{30,}|AIza[0-9A-Za-z_-]{20,})`)
+var endpointKeywordPattern = regexp.MustCompile(`(?i)(^|/)(api|graphql|v[0-9]+|auth|admin|internal|webhook|oauth|login|logout|signin|signup|users?|accounts?|members?|cars|regions|contact-us|ready-car|importer-car|filters?|search|details?|makes?|models?|sub-models?)(/|$|[?#])`)
 
 func Run(opts Options) (Result, error) {
 	if opts.CrawlRate == 0 {
@@ -134,7 +139,7 @@ func Run(opts Options) (Result, error) {
 	}
 
 	log("[js] Extracting routes and high-signal lines...")
-	interesting, routes, sourceMaps := extractFromRun(opts.RunDir, crawled)
+	interesting, routes, sourceMaps := extractFromRun(opts.RunDir, crawled, jsFiles, opts.Target)
 	routes = filterRoutesInScope(routes, opts.Target)
 	if err := writeLines(filepath.Join(opts.RunDir, "normalized/js-interesting-lines.txt"), interesting); err != nil {
 		return Result{}, err
@@ -484,7 +489,7 @@ func filterRoutesInScope(routes []string, target string) []string {
 
 	var scoped []string
 	for _, route := range routes {
-		route = strings.TrimSpace(route)
+		route = normalizeRouteCandidate(route, target)
 		if route == "" {
 			continue
 		}
@@ -511,15 +516,13 @@ func resetDir(path string) error {
 	return os.MkdirAll(path, 0o755)
 }
 
-func extractFromRun(runDir string, crawled []string) ([]string, []string, []string) {
+func extractFromRun(runDir string, crawled, jsFiles []string, target string) ([]string, []string, []string) {
 	var interesting []string
 	routeSet := map[string]struct{}{}
 	sourceMapSet := map[string]struct{}{}
 
-	addLine := func(source string, lineNo int, line string) {
-		for _, route := range routePattern.FindAllString(line, -1) {
-			routeSet[route] = struct{}{}
-		}
+	addLine := func(source string, lineNo int, line string, bases map[string]string) {
+		extractEndpointCandidates(line, target, bases, routeSet)
 		for _, match := range sourceMapPattern.FindAllStringSubmatch(line, -1) {
 			if len(match) > 1 {
 				sourceMapSet[match[1]] = struct{}{}
@@ -531,7 +534,13 @@ func extractFromRun(runDir string, crawled []string) ([]string, []string, []stri
 	}
 
 	for i, line := range crawled {
-		addLine("raw/katana-urls.txt", i+1, line)
+		addLine("raw/katana-urls.txt", i+1, line, map[string]string{})
+	}
+
+	for _, jsURL := range jsFiles {
+		if route := nextAppRouteFromJSURL(jsURL); route != "" {
+			routeSet[route] = struct{}{}
+		}
 	}
 
 	jsDir := filepath.Join(runDir, "raw/js")
@@ -543,14 +552,221 @@ func extractFromRun(runDir string, crawled []string) ([]string, []string, []stri
 		if err != nil {
 			rel = path
 		}
+		bases := map[string]string{}
 		for lineNo, line := range readLinesWithBlanks(path) {
-			addLine(filepath.ToSlash(rel), lineNo+1, line)
+			addLine(filepath.ToSlash(rel), lineNo+1, line, bases)
 		}
 		return nil
 	})
 
 	sort.Strings(interesting)
 	return unique(interesting), sortedKeys(routeSet), sortedKeys(sourceMapSet)
+}
+
+func extractEndpointCandidates(line, target string, bases map[string]string, routeSet map[string]struct{}) {
+	for _, match := range assignmentPattern.FindAllStringSubmatch(line, -1) {
+		if len(match) >= 3 {
+			value := cleanJSToken(match[2])
+			if value != "" {
+				bases[match[1]] = value
+				addRouteCandidate(routeSet, value, target)
+			}
+		}
+	}
+	for _, route := range routePattern.FindAllString(line, -1) {
+		addRouteCandidate(routeSet, route, target)
+	}
+	for _, match := range quotedEndpointPattern.FindAllStringSubmatch(line, -1) {
+		if len(match) >= 2 {
+			addRouteCandidate(routeSet, match[1], target)
+		}
+	}
+	for _, match := range concatPattern.FindAllStringSubmatch(line, -1) {
+		if len(match) >= 3 {
+			if joined := joinEndpoint(bases[match[1]], match[2]); joined != "" {
+				addRouteCandidate(routeSet, joined, target)
+			}
+		}
+	}
+	for _, match := range plusConcatPattern.FindAllStringSubmatch(line, -1) {
+		if len(match) >= 3 {
+			if joined := joinEndpoint(bases[match[1]], match[2]); joined != "" {
+				addRouteCandidate(routeSet, joined, target)
+			}
+		}
+	}
+}
+
+func addRouteCandidate(routeSet map[string]struct{}, raw, target string) {
+	if clean := normalizeRouteCandidate(raw, target); clean != "" {
+		routeSet[clean] = struct{}{}
+	}
+}
+
+func normalizeRouteCandidate(raw, target string) string {
+	value := cleanJSToken(raw)
+	value = repairRouteSeparators(value)
+	if value == "" || len(value) > 2048 || strings.ContainsAny(value, " \t\r\n") {
+		return ""
+	}
+	if isNoisyEndpointValue(value) {
+		return ""
+	}
+	lower := strings.ToLower(value)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") ||
+		strings.HasPrefix(lower, "ws://") || strings.HasPrefix(lower, "wss://") {
+		parsed, err := url.Parse(value)
+		if err != nil || parsed.Host == "" {
+			return ""
+		}
+		host := strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
+		target = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(target)), "*.")
+		target = strings.TrimSuffix(target, ".")
+		if target != "" && host != target && !strings.HasSuffix(host, "."+target) {
+			return ""
+		}
+		parsed.Fragment = ""
+		if isNoisyEndpointValue(parsed.Path) || isStaticAssetPath(parsed.Path) {
+			return ""
+		}
+		if parsed.Path == "" || parsed.Path == "/" {
+			return ""
+		}
+		if !endpointLikePath(parsed.Path) && parsed.RawQuery == "" {
+			return ""
+		}
+		return parsed.String()
+	}
+	if !strings.HasPrefix(value, "/") || strings.HasPrefix(value, "//") || strings.Contains(value, "\\") {
+		return ""
+	}
+	pathOnly := value
+	if idx := strings.IndexAny(pathOnly, "?#"); idx >= 0 {
+		pathOnly = pathOnly[:idx]
+	}
+	if isNoisyEndpointValue(pathOnly) || isStaticAssetPath(pathOnly) {
+		return ""
+	}
+	if !endpointLikePath(pathOnly) && !looksLikeAppRoute(pathOnly) {
+		return ""
+	}
+	return value
+}
+
+func joinEndpoint(base, suffix string) string {
+	base = cleanJSToken(base)
+	suffix = cleanJSToken(suffix)
+	if base == "" || suffix == "" {
+		return ""
+	}
+	if strings.HasPrefix(suffix, "http://") || strings.HasPrefix(suffix, "https://") ||
+		strings.HasPrefix(suffix, "ws://") || strings.HasPrefix(suffix, "wss://") {
+		return suffix
+	}
+	if !strings.HasPrefix(suffix, "/") {
+		suffix = "/" + suffix
+	}
+	return strings.TrimRight(base, "/") + suffix
+}
+
+func cleanJSToken(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.Trim(value, `"'`)
+	value = strings.ReplaceAll(value, `\/`, `/`)
+	value = strings.ReplaceAll(value, `\u002F`, `/`)
+	value = strings.ReplaceAll(value, `\u002f`, `/`)
+	value = strings.TrimRight(value, `,;.)`)
+	return value
+}
+
+func repairRouteSeparators(value string) string {
+	replacements := map[string]string{
+		":localeauth/":   ":locale/auth/",
+		"}auth/":         "}/auth/",
+		":localesign":    ":locale/sign",
+		"}sign":          "}/sign",
+		":localecontact": ":locale/contact",
+		"}contact":       "}/contact",
+	}
+	for old, replacement := range replacements {
+		value = strings.ReplaceAll(value, old, replacement)
+	}
+	return value
+}
+
+func endpointLikePath(path string) bool {
+	return endpointKeywordPattern.MatchString(path)
+}
+
+func looksLikeAppRoute(path string) bool {
+	if path == "/" || !strings.HasPrefix(path, "/") {
+		return false
+	}
+	if strings.Contains(path, "{") || strings.Contains(path, "[") || strings.Contains(path, "/:") {
+		return true
+	}
+	return false
+}
+
+func isStaticAssetPath(path string) bool {
+	lower := strings.ToLower(path)
+	for _, ext := range []string{
+		".js", ".mjs", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico",
+		".woff", ".woff2", ".ttf", ".eot", ".map", ".pdf", ".zip", ".mp4", ".mp3",
+	} {
+		if strings.Contains(lower, ext) {
+			return true
+		}
+	}
+	return strings.Contains(lower, "/_next/static/") || strings.Contains(lower, "/assets/")
+}
+
+func isNoisyEndpointValue(value string) bool {
+	if strings.ContainsAny(value, "<>") || strings.Contains(value, "([^") {
+		return true
+	}
+	unescaped, err := url.PathUnescape(value)
+	if err == nil && (strings.ContainsAny(unescaped, "<>") || strings.Contains(unescaped, "([^")) {
+		return true
+	}
+	return false
+}
+
+func nextAppRouteFromJSURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	path, err := url.PathUnescape(parsed.Path)
+	if err != nil {
+		path = parsed.Path
+	}
+	marker := "/_next/static/chunks/app/"
+	idx := strings.Index(path, marker)
+	if idx < 0 {
+		return ""
+	}
+	routePath := strings.TrimPrefix(path[idx+len(marker):], "/")
+	segments := strings.Split(routePath, "/")
+	var route []string
+	for _, segment := range segments {
+		if segment == "" {
+			continue
+		}
+		if strings.HasPrefix(segment, "page-") || strings.HasPrefix(segment, "layout-") ||
+			strings.HasPrefix(segment, "loading-") || strings.HasPrefix(segment, "not-found-") ||
+			strings.HasPrefix(segment, "global-error-") || strings.HasPrefix(segment, "error-") {
+			break
+		}
+		if strings.HasPrefix(segment, "(") && strings.HasSuffix(segment, ")") {
+			continue
+		}
+		route = append(route, strings.ReplaceAll(strings.ReplaceAll(segment, "[", "{"), "]", "}"))
+	}
+	if len(route) == 0 {
+		return ""
+	}
+	return "/" + strings.Join(route, "/")
 }
 
 func resolveRelative(base, relative string) string {
@@ -640,7 +856,7 @@ func readLinesWithBlanks(path string) []string {
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 1024), 1024*1024)
+	scanner.Buffer(make([]byte, 1024), 32*1024*1024)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}

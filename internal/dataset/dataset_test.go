@@ -25,12 +25,15 @@ func TestExportCreatesStableDataset(t *testing.T) {
 	writeFixture(t, runDir, "normalized/resolved-hosts.txt", "app.example.com\napi.example.com\napi.example.com\nnotexample.com\n")
 	writeFixture(t, runDir, "normalized/resolved.txt", "api.example.com [A] [2.2.2.2]\napp.example.com [CNAME] [proxy.example.net]\n")
 	writeFixture(t, runDir, "normalized/dns-records.tsv", "type\tname\tvalue\nA\texample.com\t1.2.3.4\nMX\texample.com\tmail.example.com\nA\texample.com.attacker.net\t5.6.7.8\n")
+	writeFixture(t, runDir, "normalized/whois.tsv", "key\tvalue\nregistrar\tExample Registrar\ncreated\t2026-08-27T12:00:00Z\n")
+	writeFixture(t, runDir, "raw/whois.txt", "Domain Name: EXAMPLE.COM\nRegistrar: Example Registrar\n")
 	writeFixture(t, runDir, "normalized/live-hosts.txt", "https://api.example.com [301,200] [18420] [application/json] [API] [nginx,Go]\nhttps://evil-example.com [200] [1] [text/html] [Bad] [Apache]\n")
 	writeFixture(t, runDir, "normalized/open-ports.tsv", "host\tport\tservice\tsource\napi.example.com\t443\thttps\tnaabu,nmap\napi.example.com\t70000\tbad\tnaabu\nexample.com.attacker.net\t443\thttps\tnaabu\n")
 	writeFixture(t, runDir, "normalized/urls.txt", "https://api.example.com/users?id=1#frag\nhttps://api.example.com/users?id=1\nhttps://dashboard.example.com/\nhttps://example.com/login?redirect=/home\nhttps://example.com.attacker.net/pwn?id=1\n")
 	writeFixture(t, runDir, "normalized/parameters.tsv", "name\turl\tsource\nid\thttps://api.example.com/users?id=\turl\nredirect\thttps://example.com/login?redirect=\turl\nbad name\thttps://api.example.com\turl\n")
 	writeFixture(t, runDir, "normalized/js-files.txt", "https://example.com/assets/app.js\nhttps://example.com/assets/app.js\nhttps://example.com.attacker.net/app.js\n")
 	writeFixture(t, runDir, "normalized/js-endpoints.txt", "/api/v1/users\nhttps://api.example.com/v1/orders\nhttps://example.com.attacker.net/v1/orders\nnot-a-route\n")
+	writeFixture(t, runDir, "normalized/js-interesting-lines.txt", "raw/js/app.js:1:fetch('/api/v1/users')\n")
 
 	summary, err := Export(Options{
 		RunDir:      runDir,
@@ -64,6 +67,20 @@ func TestExportCreatesStableDataset(t *testing.T) {
 	assertLines(t, filepath.Join(resultDir, "parameters.txt"), []string{"id", "redirect"})
 	assertLines(t, filepath.Join(resultDir, "javascript.txt"), []string{"https://example.com/assets/app.js"})
 	assertLines(t, filepath.Join(resultDir, "endpoints.txt"), []string{"/api/v1/users", "https://api.example.com/v1/orders"})
+	reconText := readText(t, filepath.Join(resultDir, "recon.txt"))
+	for _, want := range []string{
+		"PEYDA RECON REPORT",
+		"[WHOIS] [registrar] Example Registrar",
+		"[DNS] [A] example.com -> 1.2.3.4",
+		"[HTTP] [200] [Go,nginx] https://api.example.com | API",
+		"[PORT] [443/https] api.example.com | source=naabu,nmap",
+		"[PARAM] [id] https://api.example.com/users?id= | source=url",
+		"[JS-ENDPOINT] [api,relative,user] /api/v1/users",
+	} {
+		if !strings.Contains(reconText, want) {
+			t.Fatalf("recon.txt missing %q:\n%s", want, reconText)
+		}
+	}
 
 	if summary.Subdomains != countLines(t, filepath.Join(resultDir, "subdomains.txt")) ||
 		summary.Resolved != countLines(t, filepath.Join(resultDir, "resolved.txt")) ||
@@ -158,6 +175,7 @@ func requiredFiles() []string {
 		"parameters.txt",
 		"javascript.txt",
 		"endpoints.txt",
+		"recon.txt",
 		"dns.json",
 		"http.json",
 		"ports.json",
@@ -205,6 +223,15 @@ func readJSON(t *testing.T, path string, out any) {
 	if err := json.Unmarshal(data, out); err != nil {
 		t.Fatalf("invalid JSON %s: %v", filepath.Base(path), err)
 	}
+}
+
+func readText(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
 
 func countLines(t *testing.T, path string) int {

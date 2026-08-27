@@ -65,7 +65,7 @@ func RunPostJS(opts Options) (Result, error) {
 		return Result{}, err
 	}
 
-	fmt.Fprintf(opts.Out, "[js] Extracting JS endpoints with xnLinkFinder fallback...\n")
+	fmt.Fprintf(opts.Out, "[js] Extracting JS endpoints with native analysis and xnLinkFinder...\n")
 	endpoints := collectJSEndpoints(opts.RunDir, opts.Tools.XNLinkFinder)
 	if err := writeLines(filepath.Join(opts.RunDir, "normalized/js-endpoints.txt"), endpoints); err != nil {
 		return Result{}, err
