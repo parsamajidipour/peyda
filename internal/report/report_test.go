@@ -10,7 +10,7 @@ import (
 )
 
 func TestParseHTTPXLine(t *testing.T) {
-	got := parseHTTPXLine("https://app.example.com [200] [Dashboard] [React,Cloudflare] [12432]")
+	got := parseHTTPXLine("https://app.example.com [200] [12432] [Dashboard] [text/html] [React,Cloudflare]")
 	if got["url"] != "https://app.example.com" {
 		t.Fatalf("url = %q", got["url"])
 	}
@@ -19,6 +19,15 @@ func TestParseHTTPXLine(t *testing.T) {
 	}
 	if got["title"] != "Dashboard" {
 		t.Fatalf("title = %q", got["title"])
+	}
+	if got["content_length"] != "12432" {
+		t.Fatalf("content_length = %q", got["content_length"])
+	}
+	if got["content_type"] != "text/html" {
+		t.Fatalf("content_type = %q", got["content_type"])
+	}
+	if got["technology"] != "React,Cloudflare" {
+		t.Fatalf("technology = %q", got["technology"])
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -61,6 +62,30 @@ func WriteMarkdown(runDir string, cfg config.Config) error {
 	fmt.Fprintf(&b, "| Crawl duration | `%s` |\n", cfg.CrawlDuration)
 	fmt.Fprintf(&b, "| Max domain pages | `%d` |\n", cfg.MaxDomainPages)
 	fmt.Fprintf(&b, "| API probe rate | `%d` |\n\n", cfg.APIRate)
+
+	fmt.Fprintf(&b, "## Tool Settings\n\n")
+	fmt.Fprintf(&b, "| Tool | Settings |\n| --- | --- |\n")
+	fmt.Fprintf(&b, "| subfinder | `all=%t recursive=%t` |\n", cfg.Tools.Subfinder.All, cfg.Tools.Subfinder.Recursive)
+	fmt.Fprintf(&b, "| dnsx | `record_types=%s response=%t` |\n", strings.Join(cfg.Tools.DNSX.RecordTypes, ","), cfg.Tools.DNSX.Response)
+	fmt.Fprintf(&b, "| httpx | `redirects=%t title=%t status=%t length=%t type=%t tech=%t` |\n",
+		cfg.Tools.HTTPX.FollowRedirects,
+		cfg.Tools.HTTPX.Title,
+		cfg.Tools.HTTPX.StatusCode,
+		cfg.Tools.HTTPX.ContentLength,
+		cfg.Tools.HTTPX.ContentType,
+		cfg.Tools.HTTPX.TechDetect,
+	)
+	fmt.Fprintf(&b, "| katana | `js=%t iqp=%t fsu=%t known_files=%q field_scope=%q strategy=%q headless=%t xhr=%t display_out_scope=%t` |\n\n",
+		cfg.Tools.Katana.JSCrawl,
+		cfg.Tools.Katana.IgnoreQueryParams,
+		cfg.Tools.Katana.FilterSimilar,
+		cfg.Tools.Katana.KnownFiles,
+		cfg.Tools.Katana.FieldScope,
+		cfg.Tools.Katana.Strategy,
+		cfg.Tools.Katana.Headless,
+		cfg.Tools.Katana.XHRExtraction,
+		cfg.Tools.Katana.DisplayOutScope,
+	)
 
 	counts := map[string]int{
 		"In-scope subdomains":       countLines(filepath.Join(runDir, "normalized/subdomains.txt")),
@@ -121,6 +146,7 @@ func WriteText(runDir string, cfg config.Config) error {
 	fmt.Fprintf(&b, "Max domain pages : %d\n", cfg.MaxDomainPages)
 	fmt.Fprintf(&b, "API probe rate   : %d\n\n", cfg.APIRate)
 
+	writeToolConfig(&b, cfg.Tools)
 	writeCounts(&b, runDir)
 	writePlainSection(&b, "SUBDOMAINS", "These subdomains were found:", readLines(filepath.Join(runDir, "normalized/subdomains.txt")))
 	writePlainSection(&b, "RESOLVED HOSTS", "These hosts resolved successfully:", readLines(filepath.Join(runDir, "normalized/resolved-hosts.txt")))
@@ -194,16 +220,34 @@ func parseHTTPXLine(line string) map[string]string {
 		fields["url"] = parts[0]
 	}
 	brackets := extractBrackets(line)
-	if len(brackets) > 0 {
-		fields["status"] = brackets[0]
+	var remaining []string
+	for _, value := range brackets {
+		switch {
+		case fields["status"] == "" && looksLikeStatus(value):
+			fields["status"] = value
+		case fields["content_length"] == "" && looksLikeInteger(value):
+			fields["content_length"] = value
+		case fields["content_type"] == "" && strings.Contains(value, "/"):
+			fields["content_type"] = value
+		default:
+			remaining = append(remaining, value)
+		}
 	}
-	if len(brackets) > 1 {
-		fields["title"] = brackets[1]
+	if len(remaining) > 0 {
+		fields["title"] = remaining[0]
 	}
-	if len(brackets) > 2 {
-		fields["technology"] = brackets[2]
+	if len(remaining) > 1 {
+		fields["technology"] = remaining[len(remaining)-1]
 	}
 	return fields
+}
+
+func looksLikeStatus(value string) bool {
+	return regexp.MustCompile(`^[0-9]{3}(,[0-9]{3})*$`).MatchString(value)
+}
+
+func looksLikeInteger(value string) bool {
+	return regexp.MustCompile(`^[0-9]+$`).MatchString(value)
 }
 
 func extractBrackets(line string) []string {
@@ -288,6 +332,32 @@ func writeCounts(b *strings.Builder, runDir string) {
 		fmt.Fprintf(b, "%-25s %d\n", item.name+":", item.count)
 	}
 	fmt.Fprintf(b, "\n")
+}
+
+func writeToolConfig(b *strings.Builder, tools config.Tools) {
+	fmt.Fprintf(b, "TOOL CONFIGURATION\n")
+	fmt.Fprintf(b, "------------------\n")
+	fmt.Fprintf(b, "subfinder : all=%t recursive=%t\n", tools.Subfinder.All, tools.Subfinder.Recursive)
+	fmt.Fprintf(b, "dnsx      : record_types=%s response=%t\n", strings.Join(tools.DNSX.RecordTypes, ","), tools.DNSX.Response)
+	fmt.Fprintf(b, "httpx     : redirects=%t title=%t status=%t length=%t type=%t tech=%t\n",
+		tools.HTTPX.FollowRedirects,
+		tools.HTTPX.Title,
+		tools.HTTPX.StatusCode,
+		tools.HTTPX.ContentLength,
+		tools.HTTPX.ContentType,
+		tools.HTTPX.TechDetect,
+	)
+	fmt.Fprintf(b, "katana    : js=%t iqp=%t fsu=%t known_files=%q field_scope=%q strategy=%q headless=%t xhr=%t display_out_scope=%t\n\n",
+		tools.Katana.JSCrawl,
+		tools.Katana.IgnoreQueryParams,
+		tools.Katana.FilterSimilar,
+		tools.Katana.KnownFiles,
+		tools.Katana.FieldScope,
+		tools.Katana.Strategy,
+		tools.Katana.Headless,
+		tools.Katana.XHRExtraction,
+		tools.Katana.DisplayOutScope,
+	)
 }
 
 func writePlainSection(b *strings.Builder, title, intro string, lines []string) {

@@ -37,6 +37,7 @@ func Run(root string, cfg config.Config) error {
 			Target:  cfg.Target,
 			Resolve: false,
 			Probe:   false,
+			Tools:   cfg.Tools,
 		})
 	default:
 		_, err = subdomain.Run(subdomain.Options{
@@ -46,6 +47,7 @@ func Run(root string, cfg config.Config) error {
 			ProbeRate: cfg.ProbeRate,
 			Resolve:   true,
 			Probe:     true,
+			Tools:     cfg.Tools,
 		})
 	}
 	if err != nil {
@@ -63,10 +65,16 @@ func Run(root string, cfg config.Config) error {
 			CrawlDepth:     cfg.CrawlDepth,
 			CrawlDuration:  cfg.CrawlDuration,
 			MaxDomainPages: cfg.MaxDomainPages,
+			Tools:          cfg.Tools,
 		}); err != nil {
 			fmt.Fprintf(os.Stdout, "[reconx] JS recon skipped or failed: %v\n", err)
 		}
-		if _, err := apidiscovery.Run(apidiscovery.Options{Root: root, RunDir: runDir, ProbeRate: cfg.APIRate}); err != nil {
+		if _, err := apidiscovery.Run(apidiscovery.Options{
+			Root:      root,
+			RunDir:    runDir,
+			ProbeRate: cfg.APIRate,
+			Tools:     cfg.Tools,
+		}); err != nil {
 			return err
 		}
 		if _, err := cloud.Run(runDir); err != nil {

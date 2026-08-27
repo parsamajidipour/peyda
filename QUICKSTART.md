@@ -67,9 +67,62 @@ Config fields:
   "api_rate": 20,
   "excluded_file": "",
   "skip_deps": false,
-  "write_jsonl": true
+  "write_jsonl": true,
+  "tools": {
+    "subfinder": {
+      "all": true,
+      "recursive": true
+    },
+    "dnsx": {
+      "record_types": ["a"],
+      "response": true
+    },
+    "httpx": {
+      "follow_redirects": true,
+      "title": true,
+      "status_code": true,
+      "content_length": true,
+      "content_type": true,
+      "tech_detect": true
+    },
+    "katana": {
+      "js_crawl": true,
+      "ignore_query_params": true,
+      "filter_similar": true,
+      "known_files": "",
+      "field_scope": "rdn",
+      "strategy": "depth-first",
+      "headless": false,
+      "xhr_extraction": false,
+      "display_out_scope": false
+    }
+  }
 }
 ```
+
+You do not need to define every tool option. For example, this keeps all
+defaults and only changes Katana's crawl strategy:
+
+```json
+{
+  "target": "example.com",
+  "tools": {
+    "katana": {
+      "strategy": "breadth-first"
+    }
+  }
+}
+```
+
+Common customizations:
+
+| Goal | Config change |
+| --- | --- |
+| Crawl `robots.txt` and sitemap URLs | Set `tools.katana.known_files` to `robotstxt,sitemapxml` |
+| Try extra DNS record types | Set `tools.dnsx.record_types` to `["a", "aaaa", "cname"]` |
+| Reduce noisy HTTP output files | Set unused `tools.httpx` fields to `false` |
+| Crawl with a browser | Set `tools.katana.headless` to `true` |
+| Capture XHR URLs in headless mode | Set `tools.katana.xhr_extraction` to `true` |
 
 ## 5. Review Output
 

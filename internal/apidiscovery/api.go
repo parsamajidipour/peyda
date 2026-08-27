@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/parsamajidipour/reconx/internal/config"
 	"github.com/parsamajidipour/reconx/internal/deps"
 )
 
@@ -22,6 +23,7 @@ type Options struct {
 	Root      string
 	RunDir    string
 	ProbeRate int
+	Tools     config.Tools
 }
 
 type Result struct {
@@ -263,19 +265,7 @@ func probeDocs(opts Options) error {
 	input := filepath.Join(opts.RunDir, "raw/api-doc-paths.txt")
 	output := filepath.Join(opts.RunDir, "normalized/api-docs-probed.txt")
 	_ = os.Remove(output)
-	cmd := exec.Command(
-		httpxPath,
-		"-l", input,
-		"-silent",
-		"-nc",
-		"-status-code",
-		"-title",
-		"-content-type",
-		"-content-length",
-		"-follow-redirects",
-		"-rl", strconv.Itoa(opts.ProbeRate),
-		"-o", output,
-	)
+	cmd := exec.Command(httpxPath, httpxArgs(opts.Tools.HTTPX, input, output, opts.ProbeRate)...)
 	cmd.Dir = opts.Root
 	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
@@ -288,6 +278,29 @@ func probeDocs(opts Options) error {
 		return err
 	}
 	return file.Close()
+}
+
+func httpxArgs(tool config.HTTPXTool, input, output string, rate int) []string {
+	args := []string{"-l", input, "-silent", "-nc"}
+	if tool.StatusCode {
+		args = append(args, "-status-code")
+	}
+	if tool.Title {
+		args = append(args, "-title")
+	}
+	if tool.ContentType {
+		args = append(args, "-content-type")
+	}
+	if tool.ContentLength {
+		args = append(args, "-content-length")
+	}
+	if tool.TechDetect {
+		args = append(args, "-tech-detect")
+	}
+	if tool.FollowRedirects {
+		args = append(args, "-follow-redirects")
+	}
+	return append(args, "-rl", strconv.Itoa(rate), "-o", output)
 }
 
 func resetDir(path string) error {

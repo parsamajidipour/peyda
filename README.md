@@ -76,6 +76,74 @@ Run with config:
 bin/reconx run --config reconx.example.json
 ```
 
+`reconx` has three configuration layers:
+
+| Layer | Use it for |
+| --- | --- |
+| Profile | Pick a safe preset: `passive`, `balanced`, or `deep` |
+| CLI flags | Change common run settings quickly, such as rate or crawl depth |
+| JSON config | Tune underlying tools without turning the CLI into a long flag list |
+
+Example:
+
+```json
+{
+  "target": "example.com",
+  "profile": "balanced",
+  "probe_rate": 50,
+  "crawl_rate": 10,
+  "crawl_depth": 1,
+  "crawl_duration": "45s",
+  "max_domain_pages": 75,
+  "tools": {
+    "subfinder": {
+      "all": true,
+      "recursive": true
+    },
+    "dnsx": {
+      "record_types": ["a"],
+      "response": true
+    },
+    "httpx": {
+      "follow_redirects": true,
+      "title": true,
+      "status_code": true,
+      "content_length": true,
+      "content_type": true,
+      "tech_detect": true
+    },
+    "katana": {
+      "js_crawl": true,
+      "ignore_query_params": true,
+      "filter_similar": true,
+      "known_files": "",
+      "field_scope": "rdn",
+      "strategy": "depth-first",
+      "headless": false,
+      "xhr_extraction": false,
+      "display_out_scope": false
+    }
+  }
+}
+```
+
+Tool settings are optional. If you only override one field, the remaining safe
+defaults stay enabled.
+
+| Config path | Controls |
+| --- | --- |
+| `tools.subfinder.all` | Adds `subfinder -all` for broader passive sources |
+| `tools.subfinder.recursive` | Adds `subfinder -recursive` for recursive enumeration |
+| `tools.dnsx.record_types` | Adds DNS record flags such as `-a`, `-aaaa`, or `-cname` |
+| `tools.dnsx.response` | Adds `dnsx -resp` to preserve DNS answers |
+| `tools.httpx.*` | Controls live probing fields such as title, status, content type, tech detection, and redirects |
+| `tools.katana.js_crawl` | Adds `katana -jc` to parse JavaScript-discovered endpoints |
+| `tools.katana.known_files` | Adds `katana -kf`, for example `robotstxt,sitemapxml` |
+| `tools.katana.field_scope` | Adds `katana -fs`, usually `rdn` for root-domain scope |
+| `tools.katana.strategy` | Adds `katana -s`, such as `depth-first` or `breadth-first` |
+| `tools.katana.headless` | Adds `katana -hl` for browser-based crawling |
+| `tools.katana.xhr_extraction` | Adds `katana -xhr` when headless crawling should collect XHR URLs |
+
 ## Project Layout
 
 ```text

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/parsamajidipour/reconx/internal/config"
 	"github.com/parsamajidipour/reconx/internal/deps"
 )
 
@@ -26,6 +27,7 @@ type Options struct {
 	CrawlDepth     int
 	CrawlDuration  string
 	MaxDomainPages int
+	Tools          config.Tools
 }
 
 type Result struct {
@@ -90,8 +92,8 @@ func Run(opts Options) (Result, error) {
 	}
 
 	log("[js] Crawling live URLs with katana...")
-	log("[js] crawl_rate=%d crawl_depth=%d crawl_duration=%s max_domain_pages=%d",
-		opts.CrawlRate, opts.CrawlDepth, opts.CrawlDuration, opts.MaxDomainPages)
+	log("[js] crawl_rate=%d crawl_depth=%d crawl_duration=%s max_domain_pages=%d strategy=%s",
+		opts.CrawlRate, opts.CrawlDepth, opts.CrawlDuration, opts.MaxDomainPages, opts.Tools.Katana.Strategy)
 	if err := runKatana(opts); err != nil {
 		return Result{}, err
 	}
@@ -195,20 +197,8 @@ func runKatana(opts Options) error {
 	output := filepath.Join(opts.RunDir, "raw/katana-urls.txt")
 	_ = os.Remove(output)
 	_ = os.Remove(filepath.Join(opts.RunDir, "raw/katana-urls.all.txt"))
-	cmd := exec.Command(
-		katanaPath,
-		"-list", filepath.Join(opts.RunDir, "normalized/live-urls.txt"),
-		"-jc",
-		"-silent",
-		"-nc",
-		"-d", strconv.Itoa(opts.CrawlDepth),
-		"-ct", opts.CrawlDuration,
-		"-mdp", strconv.Itoa(opts.MaxDomainPages),
-		"-iqp",
-		"-fsu",
-		"-rl", strconv.Itoa(opts.CrawlRate),
-		"-o", output,
-	)
+	input := filepath.Join(opts.RunDir, "normalized/live-urls.txt")
+	cmd := exec.Command(katanaPath, katanaArgs(opts.Tools.Katana, input, output, opts)...)
 	cmd.Dir = opts.Root
 	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
@@ -221,6 +211,46 @@ func runKatana(opts Options) error {
 		return err
 	}
 	return file.Close()
+}
+
+func katanaArgs(tool config.KatanaTool, input, output string, opts Options) []string {
+	args := []string{
+		"-list", input,
+		"-silent",
+		"-nc",
+		"-d", strconv.Itoa(opts.CrawlDepth),
+		"-ct", opts.CrawlDuration,
+		"-mdp", strconv.Itoa(opts.MaxDomainPages),
+		"-rl", strconv.Itoa(opts.CrawlRate),
+	}
+	if tool.JSCrawl {
+		args = append(args, "-jc")
+	}
+	if tool.IgnoreQueryParams {
+		args = append(args, "-iqp")
+	}
+	if tool.FilterSimilar {
+		args = append(args, "-fsu")
+	}
+	if tool.KnownFiles != "" {
+		args = append(args, "-kf", tool.KnownFiles)
+	}
+	if tool.FieldScope != "" {
+		args = append(args, "-fs", tool.FieldScope)
+	}
+	if tool.Strategy != "" {
+		args = append(args, "-s", tool.Strategy)
+	}
+	if tool.Headless {
+		args = append(args, "-hl")
+	}
+	if tool.XHRExtraction {
+		args = append(args, "-xhr")
+	}
+	if tool.DisplayOutScope {
+		args = append(args, "-do")
+	}
+	return append(args, "-o", output)
 }
 
 func normalizeKatanaOutput(runDir, target string) ([]string, []string, error) {

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/parsamajidipour/reconx/internal/config"
 	"github.com/parsamajidipour/reconx/internal/deps"
 )
 
@@ -25,6 +26,7 @@ type Options struct {
 	ProbeRate int
 	Resolve   bool
 	Probe     bool
+	Tools     config.Tools
 }
 
 type Result struct {
@@ -144,7 +146,15 @@ func runSubfinder(opts Options) error {
 	}
 	output := filepath.Join(opts.RunDir, "raw/subfinder.txt")
 	_ = os.Remove(output)
-	cmd := exec.Command(path, "-d", opts.Target, "-all", "-recursive", "-silent", "-o", output)
+	args := []string{"-d", opts.Target, "-silent"}
+	if opts.Tools.Subfinder.All {
+		args = append(args, "-all")
+	}
+	if opts.Tools.Subfinder.Recursive {
+		args = append(args, "-recursive")
+	}
+	args = append(args, "-o", output)
+	cmd := exec.Command(path, args...)
 	cmd.Dir = opts.Root
 	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
@@ -167,7 +177,8 @@ func wildcardDNSCheck(opts Options) error {
 		return err
 	}
 	_ = os.Remove(output)
-	return runTool(opts.Root, dnsxPath, "-l", input, "-silent", "-nc", "-a", "-resp", "-o", output)
+	args := dnsxArgs(opts.Tools.DNSX, input, output)
+	return runTool(opts.Root, dnsxPath, args...)
 }
 
 func resolveHosts(opts Options) ([]string, error) {
@@ -178,7 +189,7 @@ func resolveHosts(opts Options) ([]string, error) {
 	input := filepath.Join(opts.RunDir, "normalized/subdomains.txt")
 	output := filepath.Join(opts.RunDir, "normalized/resolved.txt")
 	_ = os.Remove(output)
-	if err := runTool(opts.Root, dnsxPath, "-l", input, "-silent", "-nc", "-a", "-resp", "-o", output); err != nil {
+	if err := runTool(opts.Root, dnsxPath, dnsxArgs(opts.Tools.DNSX, input, output)...); err != nil {
 		return nil, err
 	}
 	hosts := uniqueHostsFromDNSX(readLines(output))
@@ -199,21 +210,55 @@ func probeHTTP(opts Options) ([]string, error) {
 	err = runTool(
 		opts.Root,
 		httpxPath,
-		"-l", input,
-		"-silent",
-		"-nc",
-		"-title",
-		"-status-code",
-		"-content-length",
-		"-tech-detect",
-		"-follow-redirects",
-		"-rl", strconv.Itoa(opts.ProbeRate),
-		"-o", output,
+		httpxArgs(opts.Tools.HTTPX, input, output, opts.ProbeRate)...,
 	)
 	if err != nil {
 		return nil, err
 	}
 	return readLines(output), nil
+}
+
+func dnsxArgs(tool config.DNSXTool, input, output string) []string {
+	args := []string{"-l", input, "-silent", "-nc"}
+	recordTypes := tool.RecordTypes
+	if len(recordTypes) == 0 {
+		recordTypes = []string{"a"}
+	}
+	for _, recordType := range recordTypes {
+		recordType = strings.ToLower(strings.TrimSpace(recordType))
+		if recordType == "" {
+			continue
+		}
+		args = append(args, "-"+recordType)
+	}
+	if tool.Response {
+		args = append(args, "-resp")
+	}
+	return append(args, "-o", output)
+}
+
+func httpxArgs(tool config.HTTPXTool, input, output string, rate int) []string {
+	args := []string{"-l", input, "-silent", "-nc"}
+	if tool.Title {
+		args = append(args, "-title")
+	}
+	if tool.StatusCode {
+		args = append(args, "-status-code")
+	}
+	if tool.ContentLength {
+		args = append(args, "-content-length")
+	}
+	if tool.ContentType {
+		args = append(args, "-content-type")
+	}
+	if tool.TechDetect {
+		args = append(args, "-tech-detect")
+	}
+	if tool.FollowRedirects {
+		args = append(args, "-follow-redirects")
+	}
+	args = append(args, "-rl", strconv.Itoa(rate), "-o", output)
+	return args
 }
 
 func runTool(root, path string, args ...string) error {
@@ -403,16 +448,34 @@ func parseHTTPXLine(line string) map[string]string {
 		fields["url"] = parts[0]
 	}
 	brackets := extractBrackets(line)
-	if len(brackets) > 0 {
-		fields["status"] = brackets[0]
+	var remaining []string
+	for _, value := range brackets {
+		switch {
+		case fields["status"] == "" && looksLikeStatus(value):
+			fields["status"] = value
+		case fields["content_length"] == "" && looksLikeInteger(value):
+			fields["content_length"] = value
+		case fields["content_type"] == "" && strings.Contains(value, "/"):
+			fields["content_type"] = value
+		default:
+			remaining = append(remaining, value)
+		}
 	}
-	if len(brackets) > 1 {
-		fields["title"] = brackets[1]
+	if len(remaining) > 0 {
+		fields["title"] = remaining[0]
 	}
-	if len(brackets) > 2 {
-		fields["technology"] = brackets[2]
+	if len(remaining) > 1 {
+		fields["technology"] = remaining[len(remaining)-1]
 	}
 	return fields
+}
+
+func looksLikeStatus(value string) bool {
+	return regexp.MustCompile(`^[0-9]{3}(,[0-9]{3})*$`).MatchString(value)
+}
+
+func looksLikeInteger(value string) bool {
+	return regexp.MustCompile(`^[0-9]+$`).MatchString(value)
 }
 
 func extractBrackets(line string) []string {

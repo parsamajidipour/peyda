@@ -52,8 +52,8 @@ func TestScoreLiveHosts(t *testing.T) {
 	runDir := t.TempDir()
 	path := filepath.Join(runDir, "live-hosts.txt")
 	input := strings.Join([]string{
-		"https://app.example.com [200] [Home] [React] [1000]",
-		"https://admin.example.com [403] [Admin] [nginx] [500]",
+		"https://app.example.com [200] [1000] [Home] [text/html] [React]",
+		"https://admin.example.com [403] [500] [Admin] [text/html] [nginx]",
 	}, "\n")
 	if err := os.WriteFile(path, []byte(input+"\n"), 0o644); err != nil {
 		t.Fatal(err)

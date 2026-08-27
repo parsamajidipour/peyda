@@ -24,7 +24,7 @@ Commands:
 ## Design Goals
 
 - Produce normalized files that can be reviewed, diffed, and handed off.
-- Produce JSONL events for automation and Markdown reports for humans.
+- Produce JSONL events for automation and text/Markdown reports for humans.
 - Score live assets so the manual review queue is explainable.
 - Keep subdomain normalization, exclusion filtering, and asset scoring native.
 - Keep API candidate selection, OpenAPI parsing, and inventory generation native.
@@ -34,6 +34,7 @@ Commands:
 - Treat recon leads as candidates, not vulnerability findings.
 - Detect common tool collisions, especially Python `httpx` versus ProjectDiscovery `httpx`.
 - Keep every active probing step tied to explicit scope and rate limits.
+- Keep common run controls as CLI flags and tool-specific behavior in JSON config.
 
 ## Profiles
 
@@ -42,6 +43,15 @@ Commands:
 | `passive` | Passive subdomain collection only; no DNS or HTTP probing or active dependency setup |
 | `balanced` | Standard recon pipeline with moderate limits |
 | `deep` | Higher probe and crawl rates for larger authorized scopes |
+
+## Configuration Model
+
+Profiles provide safe presets. CLI flags are for common one-off changes such as
+`--profile`, `--crawl-depth`, `--crawl-duration`, and `-p`. The `tools` section
+in JSON config controls the ProjectDiscovery command flags used internally.
+
+This keeps the normal command short while still allowing advanced users to tune
+`subfinder`, `dnsx`, `httpx`, and `katana` behavior.
 
 ## Roadmap
 
