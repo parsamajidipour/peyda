@@ -66,6 +66,19 @@ Profiles:
   balanced  Subdomains, live probing, JS, API, cloud leads
   deep      Balanced workflow with deeper crawl/probe limits
 
+Examples:
+  reconx deps --check
+  reconx deps
+  reconx run -t example.com --profile balanced -p 25
+  reconx run -t example.com --profile passive --no-jsonl
+  reconx config init -o reconx.json
+  reconx run --config reconx.json
+
+Output:
+  default: ./runs/example.com/YYYY-MM-DD/
+  with -o: <output-root>/example.com/YYYY-MM-DD/
+  report:  notes/recon-report.txt
+
 `)
 }
 
@@ -73,7 +86,7 @@ func runCommand(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	target := fs.String("t", "", "target root domain")
 	date := fs.String("d", "", "UTC run date")
-	outputRoot := fs.String("o", "", "output root")
+	outputRoot := fs.String("o", "", "output root; defaults to ./runs in the current directory")
 	profile := fs.String("profile", "", "depth profile: passive, balanced, deep")
 	configPath := fs.String("config", "", "optional JSON config file")
 	excluded := fs.String("e", "", "excluded-host file")
@@ -132,10 +145,7 @@ func runCommand(args []string) error {
 		return err
 	}
 
-	root, err := reconrun.FindRepoRoot()
-	if err != nil {
-		return err
-	}
+	root, _ := reconrun.FindRepoRoot()
 	printBanner()
 	return reconrun.Run(root, cfg)
 }
@@ -165,10 +175,7 @@ func depsCommand(args []string) error {
 		return err
 	}
 
-	root, err := reconrun.FindRepoRoot()
-	if err != nil {
-		return err
-	}
+	root, _ := reconrun.FindRepoRoot()
 
 	mode := deps.Ensure
 	if *check {
@@ -184,7 +191,7 @@ func initCommand(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	target := fs.String("t", "", "target root domain")
 	date := fs.String("d", time.Now().UTC().Format("2006-01-02"), "UTC run date")
-	outputRoot := fs.String("o", "runs", "output root")
+	outputRoot := fs.String("o", "runs", "output root; defaults to ./runs in the current directory")
 	excluded := fs.String("e", "", "excluded-host file")
 	if err := fs.Parse(args); err != nil {
 		return err

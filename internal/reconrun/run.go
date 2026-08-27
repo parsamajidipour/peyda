@@ -94,10 +94,12 @@ func Run(root string, cfg config.Config) error {
 		return err
 	}
 
-	fmt.Printf("\nRecon complete.\nText report:\n  %s\n", filepath.Join(runDir, "notes/recon-report.txt"))
-	fmt.Printf("Markdown summary:\n  %s\n", filepath.Join(runDir, "notes/recon-summary.md"))
+	fmt.Printf("\n[INF] Recon complete\n")
+	fmt.Printf("[INF] Output directory: %s\n", runDir)
+	fmt.Printf("[INF] Text report: %s\n", filepath.Join(runDir, "notes/recon-report.txt"))
+	fmt.Printf("[INF] Markdown summary: %s\n", filepath.Join(runDir, "notes/recon-summary.md"))
 	if cfg.WriteJSONL {
-		fmt.Printf("JSONL:\n  %s\n", filepath.Join(runDir, "normalized/recon-events.jsonl"))
+		fmt.Printf("[INF] JSONL events: %s\n", filepath.Join(runDir, "normalized/recon-events.jsonl"))
 	}
 	return nil
 }
@@ -114,6 +116,10 @@ func Init(cfg config.Config) (string, error) {
 	outputRoot := cfg.OutputRoot
 	if outputRoot == "" {
 		outputRoot = "runs"
+	}
+	outputRoot, err := absolutePath(outputRoot)
+	if err != nil {
+		return "", err
 	}
 
 	runDir := filepath.Join(outputRoot, safeTarget, runDate)
@@ -153,6 +159,17 @@ func Init(cfg config.Config) (string, error) {
 		return "", err
 	}
 	return runDir, nil
+}
+
+func absolutePath(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path), nil
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return abs, nil
 }
 
 func FindRepoRoot() (string, error) {

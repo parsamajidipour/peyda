@@ -56,6 +56,14 @@ Balanced profile:
 reconx run -t example.com --profile balanced -p 50
 ```
 
+Choose an output directory:
+
+```bash
+reconx run -t example.com --profile balanced -o ~/recon-results
+```
+
+Without `-o`, output is written to `./runs` under the directory where `reconx` was executed.
+
 Passive profile:
 
 ```bash

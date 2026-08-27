@@ -123,6 +123,14 @@ Run with a lower HTTP probe rate:
 reconx run -t example.com --profile balanced -p 25
 ```
 
+Write output to a specific directory:
+
+```bash
+reconx run -t example.com --profile balanced -o ~/recon-results
+```
+
+If `-o` is not provided, `reconx` writes to `./runs` under the directory where the command was executed.
+
 Run a passive-only pass:
 
 ```bash
@@ -147,13 +155,11 @@ less "$latest_run/notes/recon-report.txt"
 At the end of a run, `reconx` prints the main artifacts:
 
 ```text
-Recon complete.
-Text report:
-  runs/example.com/YYYY-MM-DD/notes/recon-report.txt
-Markdown summary:
-  runs/example.com/YYYY-MM-DD/notes/recon-summary.md
-JSONL:
-  runs/example.com/YYYY-MM-DD/normalized/recon-events.jsonl
+[INF] Recon complete
+[INF] Output directory: /path/to/current/directory/runs/example.com/YYYY-MM-DD
+[INF] Text report: /path/to/current/directory/runs/example.com/YYYY-MM-DD/notes/recon-report.txt
+[INF] Markdown summary: /path/to/current/directory/runs/example.com/YYYY-MM-DD/notes/recon-summary.md
+[INF] JSONL events: /path/to/current/directory/runs/example.com/YYYY-MM-DD/normalized/recon-events.jsonl
 ```
 
 Start with `notes/recon-report.txt`. It is the main human-readable output.
@@ -189,6 +195,8 @@ runs/example.com/YYYY-MM-DD/
 │   └── api/
 └── screenshots/
 ```
+
+This tree is created under `./runs` by default. If you pass `-o ~/recon-results`, the same tree is created under `~/recon-results`.
 
 ## Profiles
 
