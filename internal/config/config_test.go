@@ -29,6 +29,7 @@ func TestApplyProfileDefaults(t *testing.T) {
 			t.Fatal(err)
 		}
 		if cfg.ProbeRate != tt.probe ||
+			cfg.ResultsRoot != "results" ||
 			cfg.CrawlRate != tt.crawl ||
 			cfg.CrawlDepth != tt.crawlDepth ||
 			cfg.CrawlDuration != tt.crawlDuration ||

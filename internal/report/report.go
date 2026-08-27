@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/parsamajidipour/peyda/internal/config"
+	"github.com/parsamajidipour/peyda/internal/dataset"
 )
 
 type Event struct {
@@ -68,6 +69,203 @@ func WriteCLIOutput(out io.Writer, runDir string, cfg config.Config, duration ti
 	}
 	_, err = io.WriteString(out, content)
 	return err
+}
+
+func WriteDatasetSummary(out io.Writer, cfg config.Config, summary dataset.Summary) error {
+	return WriteDatasetOutput(out, cfg, summary)
+}
+
+func WriteDatasetOutput(out io.Writer, cfg config.Config, summary dataset.Summary) error {
+	if out == nil {
+		out = io.Discard
+	}
+	content, err := RenderDatasetOutput(cfg, summary)
+	if err != nil {
+		return err
+	}
+	if cfg.OutputFile != "" {
+		if err := os.WriteFile(cfg.OutputFile, []byte(content), 0o644); err != nil {
+			return err
+		}
+	}
+	_, err = io.WriteString(out, content)
+	return err
+}
+
+func RenderDatasetOutput(cfg config.Config, summary dataset.Summary) (string, error) {
+	switch cfg.OutputFormat {
+	case "json":
+		return renderDatasetJSON(summary)
+	case "jsonl":
+		return renderDatasetJSONL(summary)
+	default:
+		return RenderDatasetSummary(summary, cfg.Silent), nil
+	}
+}
+
+func RenderDatasetSummary(summary dataset.Summary, silent bool) string {
+	output := displayPath(summary.ResultDir)
+	if silent {
+		if output == "" {
+			return ""
+		}
+		return output + "\n"
+	}
+
+	var b strings.Builder
+	fmt.Fprintln(&b, "PEYDA")
+	fmt.Fprintln(&b)
+	fmt.Fprintf(&b, "Target: %s\n\n", summary.Target)
+	fmt.Fprintf(&b, "%-16s %d\n", "Subdomains", summary.Subdomains)
+	fmt.Fprintf(&b, "%-16s %d\n", "Resolved", summary.Resolved)
+	fmt.Fprintf(&b, "%-16s %d\n", "Live hosts", summary.LiveHosts)
+	fmt.Fprintf(&b, "%-16s %d\n", "URLs", summary.URLs)
+	fmt.Fprintf(&b, "%-16s %d\n", "Parameters", summary.Parameters)
+	fmt.Fprintf(&b, "%-16s %d\n", "JavaScript", summary.JavaScriptFiles)
+	fmt.Fprintf(&b, "%-16s %d\n\n", "Endpoints", summary.Endpoints)
+	fmt.Fprintf(&b, "Output: %s\n", output)
+	fmt.Fprintf(&b, "Duration: %s\n", formatDuration(time.Duration(summary.DurationSeconds*float64(time.Second))))
+	return b.String()
+}
+
+func renderDatasetJSON(summary dataset.Summary) (string, error) {
+	results, err := readDatasetResults(summary.ResultDir)
+	if err != nil {
+		return "", err
+	}
+	body := map[string]any{
+		"summary": summary,
+		"results": results,
+	}
+	data, err := json.MarshalIndent(body, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(data) + "\n", nil
+}
+
+func renderDatasetJSONL(summary dataset.Summary) (string, error) {
+	results, err := readDatasetResults(summary.ResultDir)
+	if err != nil {
+		return "", err
+	}
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	for _, host := range results.Subdomains {
+		if err := enc.Encode(OutputRecord{Type: "subdomain", Host: host}); err != nil {
+			return "", err
+		}
+	}
+	for _, host := range results.Resolved {
+		if err := enc.Encode(OutputRecord{Type: "resolved", Host: host}); err != nil {
+			return "", err
+		}
+	}
+	for _, item := range results.Live {
+		if err := enc.Encode(OutputRecord{Type: "http", Host: hostFromURL(item), URL: item}); err != nil {
+			return "", err
+		}
+	}
+	for _, item := range results.URLs {
+		if err := enc.Encode(OutputRecord{Type: "url", URL: item}); err != nil {
+			return "", err
+		}
+	}
+	for _, name := range results.Parameters {
+		if err := enc.Encode(OutputRecord{Type: "parameter", Name: name}); err != nil {
+			return "", err
+		}
+	}
+	for _, item := range results.JavaScript {
+		if err := enc.Encode(OutputRecord{Type: "javascript", URL: item}); err != nil {
+			return "", err
+		}
+	}
+	for _, endpoint := range results.Endpoints {
+		if err := enc.Encode(OutputRecord{Type: "js_endpoint", Endpoint: endpoint}); err != nil {
+			return "", err
+		}
+	}
+	return b.String(), nil
+}
+
+type datasetResults struct {
+	Subdomains   []string `json:"subdomains"`
+	Resolved     []string `json:"resolved"`
+	Live         []string `json:"live"`
+	URLs         []string `json:"urls"`
+	Parameters   []string `json:"parameters"`
+	JavaScript   []string `json:"javascript"`
+	Endpoints    []string `json:"endpoints"`
+	DNS          any      `json:"dns"`
+	HTTP         any      `json:"http"`
+	Technologies any      `json:"technologies"`
+}
+
+func readDatasetResults(resultDir string) (datasetResults, error) {
+	var results datasetResults
+	results.Subdomains = nonNilStrings(readLines(filepath.Join(resultDir, "subdomains.txt")))
+	results.Resolved = nonNilStrings(readLines(filepath.Join(resultDir, "resolved.txt")))
+	results.Live = nonNilStrings(readLines(filepath.Join(resultDir, "live.txt")))
+	results.URLs = nonNilStrings(readLines(filepath.Join(resultDir, "urls.txt")))
+	results.Parameters = nonNilStrings(readLines(filepath.Join(resultDir, "parameters.txt")))
+	results.JavaScript = nonNilStrings(readLines(filepath.Join(resultDir, "javascript.txt")))
+	results.Endpoints = nonNilStrings(readLines(filepath.Join(resultDir, "endpoints.txt")))
+	results.DNS = readJSONAny(filepath.Join(resultDir, "dns.json"))
+	results.HTTP = readJSONAny(filepath.Join(resultDir, "http.json"))
+	results.Technologies = readJSONAny(filepath.Join(resultDir, "technologies.json"))
+	return results, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
+func readJSONAny(path string) any {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []any{}
+	}
+	var out any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return []any{}
+	}
+	return out
+}
+
+func displayPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return withTrailingSlash(filepath.ToSlash(path))
+	}
+	rel, err := filepath.Rel(cwd, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return withTrailingSlash(filepath.ToSlash(path))
+	}
+	if rel == "." {
+		return "."
+	}
+	return withTrailingSlash(filepath.ToSlash(rel))
+}
+
+func withTrailingSlash(path string) string {
+	if path == "" || strings.HasSuffix(path, "/") {
+		return path
+	}
+	return path + "/"
+}
+
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return d.Round(time.Millisecond).String()
+	}
+	return d.Round(time.Second).String()
 }
 
 func RenderCLIOutput(runDir string, cfg config.Config, duration time.Duration) (string, error) {

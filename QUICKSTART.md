@@ -50,19 +50,26 @@ wins over the Python `httpx` CLI when both are installed.
 
 ## 3. Run Recon
 
-Balanced profile:
+Default recon:
 
 ```bash
-peyda run example.com --profile balanced -p 50
+peyda example.com
 ```
 
-Choose an output directory:
+Open the final dataset:
 
 ```bash
-peyda run example.com --profile balanced --output-dir ~/recon-results
+ls results/example.com/
 ```
 
-Without `--output-dir`, artifacts are written to `./runs` under the directory where `peyda` was executed.
+Choose a base output directory:
+
+```bash
+peyda example.com --output-dir ~/recon-output
+```
+
+This writes the final dataset to `~/recon-output/results/example.com/` and
+internal run artifacts to `~/recon-output/runs/example.com/YYYY-MM-DD/`.
 
 Save the CLI output:
 
@@ -82,13 +89,13 @@ The legacy `-t` form still works, but the positional target is preferred.
 Passive profile:
 
 ```bash
-peyda run example.com --profile passive
+peyda example.com --profile passive
 ```
 
 Deep profile:
 
 ```bash
-peyda run example.com --profile deep
+peyda example.com --profile deep
 ```
 
 ## 4. Use a Config File
@@ -98,56 +105,19 @@ peyda config init
 peyda run --config peyda.example.json
 ```
 
-Config fields:
+Minimal config:
 
 ```json
 {
   "target": "example.com",
   "output_root": "runs",
-  "profile": "balanced",
-  "probe_rate": 50,
-  "crawl_rate": 10,
-  "crawl_depth": 1,
-  "crawl_duration": "45s",
-  "max_domain_pages": 75,
-  "api_rate": 20,
-  "port_rate": 50,
-  "excluded_file": "",
-  "skip_deps": false,
-  "write_jsonl": true,
-  "tools": {
-    "subfinder": {
-      "all": true,
-      "recursive": true
-    },
-    "dnsx": {
-      "record_types": ["a"],
-      "response": true
-    },
-    "httpx": {
-      "follow_redirects": true,
-      "title": true,
-      "status_code": true,
-      "content_length": true,
-      "content_type": true,
-      "tech_detect": true
-    },
-    "katana": {
-      "js_crawl": true,
-      "ignore_query_params": true,
-      "filter_similar": true,
-      "known_files": "",
-      "field_scope": "rdn",
-      "strategy": "depth-first",
-      "headless": false,
-      "xhr_extraction": false,
-      "display_out_scope": false
-    }
-  }
+  "results_root": "results",
+  "profile": "balanced"
 }
 ```
 
-You do not need to define every tool option. For example, this keeps all
+`peyda config init` writes the full config schema with all supported tool
+options. You do not need to define every option. For example, this keeps all
 defaults and only changes Katana's crawl strategy:
 
 ```json
@@ -174,21 +144,27 @@ Common customizations:
 ## 5. Review Output
 
 ```text
-runs/example.com/YYYY-MM-DD/
-├── notes/recon-report.txt
-├── notes/recon-summary.md
-├── normalized/recon-events.jsonl
-├── normalized/subdomains.txt
-├── normalized/resolved-hosts.txt
-├── normalized/live-hosts.txt
-├── normalized/asset-scores.tsv
-├── normalized/js-route-leads.txt
-├── normalized/source-map-candidates.txt
-├── normalized/api-inventory.tsv
-└── notes/cloud-candidates.tsv
+results/example.com/
+├── subdomains.txt
+├── resolved.txt
+├── live.txt
+├── urls.txt
+├── parameters.txt
+├── javascript.txt
+├── endpoints.txt
+├── dns.json
+├── http.json
+├── technologies.json
+└── summary.json
 ```
 
-Open the text report first:
+Check final counts:
+
+```bash
+jq . results/example.com/summary.json
+```
+
+Open the internal text report when you need troubleshooting details:
 
 ```bash
 latest_run="$(ls -td runs/example.com/* | head -1)"

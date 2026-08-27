@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/parsamajidipour/peyda/internal/config"
+	"github.com/parsamajidipour/peyda/internal/dataset"
 )
 
 func TestParseHTTPXLine(t *testing.T) {
@@ -111,6 +112,76 @@ func TestRenderCLIOutputModes(t *testing.T) {
 	}
 	if !strings.Contains(jsonl, `"type":"subdomain"`) || !strings.Contains(jsonl, `"type":"js_endpoint"`) {
 		t.Fatalf("jsonl output missing expected records:\n%s", jsonl)
+	}
+}
+
+func TestRenderDatasetSummaryIsConcise(t *testing.T) {
+	resultDir := filepath.Join(t.TempDir(), "results", "example.com")
+	summary := dataset.Summary{
+		Target:          "example.com",
+		Subdomains:      3,
+		Resolved:        2,
+		LiveHosts:       1,
+		URLs:            10,
+		Parameters:      4,
+		JavaScriptFiles: 2,
+		Endpoints:       5,
+		DurationSeconds: 121,
+		ResultDir:       resultDir,
+	}
+
+	got := RenderDatasetSummary(summary, false)
+	for _, want := range []string{
+		"PEYDA",
+		"Target: example.com",
+		"Subdomains       3",
+		"Output: ",
+		"Duration: 2m1s",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("summary missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "[SUB]") || strings.Contains(got, "[URL]") {
+		t.Fatalf("summary should not include individual records:\n%s", got)
+	}
+	if !strings.Contains(got, "example.com/") {
+		t.Fatalf("output directory should include trailing slash:\n%s", got)
+	}
+}
+
+func TestRenderDatasetOutputUsesFinalDataset(t *testing.T) {
+	resultDir := t.TempDir()
+	writeTestFile(t, filepath.Join(resultDir, "subdomains.txt"), "example.com\napi.example.com\n")
+	writeTestFile(t, filepath.Join(resultDir, "resolved.txt"), "api.example.com\n")
+	writeTestFile(t, filepath.Join(resultDir, "live.txt"), "https://api.example.com\n")
+	writeTestFile(t, filepath.Join(resultDir, "urls.txt"), "https://api.example.com/users?id=1\n")
+	writeTestFile(t, filepath.Join(resultDir, "parameters.txt"), "id\n")
+	writeTestFile(t, filepath.Join(resultDir, "javascript.txt"), "https://api.example.com/app.js\n")
+	writeTestFile(t, filepath.Join(resultDir, "endpoints.txt"), "/api/v1/users\n")
+	writeTestFile(t, filepath.Join(resultDir, "dns.json"), "[]\n")
+	writeTestFile(t, filepath.Join(resultDir, "http.json"), "[]\n")
+	writeTestFile(t, filepath.Join(resultDir, "technologies.json"), "[]\n")
+
+	summary := dataset.Summary{Target: "example.com", Subdomains: 2, ResultDir: resultDir}
+	jsonOut, err := RenderDatasetOutput(config.Config{OutputFormat: "json"}, summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(jsonOut, `"subdomains": [
+      "example.com",
+      "api.example.com"
+    ]`) {
+		t.Fatalf("json output did not use final dataset:\n%s", jsonOut)
+	}
+
+	jsonlOut, err := RenderDatasetOutput(config.Config{OutputFormat: "jsonl"}, summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(jsonlOut, `"type":"subdomain","host":"api.example.com"`) ||
+		!strings.Contains(jsonlOut, `"type":"js_endpoint","endpoint":"/api/v1/users"`) {
+		t.Fatalf("jsonl output did not use final dataset:\n%s", jsonlOut)
 	}
 }
 

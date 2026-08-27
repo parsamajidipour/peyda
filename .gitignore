@@ -6,6 +6,7 @@ bin/
 .env
 .env.*
 runs/
+results/
 snapshots/
 output/
 *.log

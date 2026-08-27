@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -52,8 +53,11 @@ func main() {
 func usage() {
 	fmt.Print(`peyda - scope-first reconnaissance CLI
 
+Runs the default reconnaissance pipeline and writes a normalized dataset to
+results/<target>/.
+
 Usage:
-  peyda example.com [--profile balanced] [-silent] [-json|-jsonl] [-o result.txt]
+  peyda example.com [-silent] [-json|-jsonl] [-o result.txt]
   peyda run example.com [--profile balanced] [--config peyda.json] [--no-jsonl]
   peyda deps [--check | --update]
   peyda init example.com [-d YYYY-MM-DD] [-o runs] [-e excluded.txt]
@@ -73,6 +77,7 @@ Profiles:
   deep      Slow exhaustive recon with deeper crawling and larger caps
 
 Examples:
+  peyda example.com
   peyda deps --check
   peyda deps
   peyda example.com --profile deep
@@ -85,9 +90,9 @@ Examples:
   peyda run --config peyda.json
 
 Output:
-  default: ./runs/example.com/YYYY-MM-DD/
-  with --output-dir: <output-root>/example.com/YYYY-MM-DD/
-  report:  notes/recon-report.txt
+  dataset: ./results/example.com/
+  internal: ./runs/example.com/YYYY-MM-DD/
+  with --output-dir: <base>/results/example.com/ and <base>/runs/example.com/YYYY-MM-DD/
 
 `)
 }
@@ -97,7 +102,7 @@ func runCommand(args []string) error {
 	target := fs.String("t", "", "target root domain; optional when target is passed positionally")
 	date := fs.String("d", "", "UTC run date")
 	outputFile := fs.String("o", "", "write CLI output to file")
-	outputRoot := fs.String("output-dir", "", "artifact output root; defaults to ./runs in the current directory")
+	outputRoot := fs.String("output-dir", "", "base output root; defaults to the current directory")
 	profile := fs.String("profile", "", "depth profile: passive, balanced, deep; balance is accepted as an alias")
 	configPath := fs.String("config", "", "optional JSON config file")
 	excluded := fs.String("e", "", "excluded-host file")
@@ -107,7 +112,7 @@ func runCommand(args []string) error {
 	maxDomainPages := fs.Int("max-domain-pages", 0, "maximum crawled pages per domain")
 	skipDeps := fs.Bool("skip-deps", false, "skip dependency preparation")
 	noJSONL := fs.Bool("no-jsonl", false, "disable normalized/recon-events.jsonl")
-	silent := fs.Bool("silent", false, "print only result lines without banner or summary")
+	silent := fs.Bool("silent", false, "print only the final dataset directory")
 	jsonOut := fs.Bool("json", false, "print final output as JSON")
 	jsonlOut := fs.Bool("jsonl", false, "print final output as JSONL")
 	positionalTarget, filteredArgs, err := extractRunTarget(args)
@@ -132,7 +137,8 @@ func runCommand(args []string) error {
 		cfg.RunDate = *date
 	}
 	if *outputRoot != "" {
-		cfg.OutputRoot = *outputRoot
+		cfg.OutputRoot = filepath.Join(*outputRoot, "runs")
+		cfg.ResultsRoot = filepath.Join(*outputRoot, "results")
 	}
 	if *outputFile != "" {
 		cfg.OutputFile = *outputFile

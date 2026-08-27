@@ -2,6 +2,7 @@
   "target": "example.com",
   "run_date": "",
   "output_root": "runs",
+  "results_root": "results",
   "profile": "balanced",
   "probe_rate": 50,
   "crawl_rate": 10,

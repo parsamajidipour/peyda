@@ -2,6 +2,107 @@
 
 These schemas keep recon output predictable across manual notes and scripts.
 
+## `results/<target>/`
+
+This is the stable public dataset produced by `peyda example.com`.
+
+```text
+results/example.com/
+├── subdomains.txt
+├── resolved.txt
+├── live.txt
+├── urls.txt
+├── parameters.txt
+├── javascript.txt
+├── endpoints.txt
+├── dns.json
+├── http.json
+├── technologies.json
+└── summary.json
+```
+
+Text files contain one deduplicated item per line and are sorted whenever practical.
+
+| File | Schema |
+| --- | --- |
+| `subdomains.txt` | In-scope hostnames |
+| `resolved.txt` | In-scope hostnames that resolved |
+| `live.txt` | Reachable HTTP/S URLs |
+| `urls.txt` | Normalized in-scope URLs |
+| `parameters.txt` | Parameter names only |
+| `javascript.txt` | In-scope JavaScript URLs |
+| `endpoints.txt` | Relative endpoints or in-scope absolute HTTP/S/WebSocket URLs |
+
+`dns.json` is an array of host records:
+
+```json
+[
+  {
+    "host": "example.com",
+    "a": ["1.2.3.4"],
+    "aaaa": [],
+    "cname": [],
+    "mx": ["mail.example.com"],
+    "ns": [],
+    "txt": [],
+    "soa": [],
+    "caa": [],
+    "dnskey": [],
+    "ds": []
+  }
+]
+```
+
+`http.json` is an array of HTTP assets:
+
+```json
+[
+  {
+    "url": "https://api.example.com",
+    "host": "api.example.com",
+    "status": 200,
+    "title": "API",
+    "content_type": "application/json",
+    "content_length": 18420,
+    "server": "",
+    "ip": "",
+    "redirect": "",
+    "technologies": ["Go", "nginx"]
+  }
+]
+```
+
+`technologies.json` groups best-effort technology hints by host:
+
+```json
+[
+  {
+    "host": "api.example.com",
+    "technologies": ["Go", "nginx"]
+  }
+]
+```
+
+`summary.json` counts are derived from the final exported files:
+
+```json
+{
+  "target": "example.com",
+  "subdomains": 481,
+  "resolved": 302,
+  "live_hosts": 174,
+  "urls": 18342,
+  "javascript_files": 428,
+  "parameters": 91,
+  "endpoints": 637
+}
+```
+
+## Internal Run Artifacts
+
+The `runs/<target>/<date>/` tree is internal. It preserves raw tool output,
+normalized intermediate files, JSONL events, and notes for debugging.
+
 ## `normalized/recon-events.jsonl`
 
 Produced by `peyda run`.
@@ -160,7 +261,7 @@ Produced by `peyda run` in `balanced` and `deep` profiles.
 
 ## `notes/recon-report.txt`
 
-Produced by `peyda run`. This is the primary human-readable report for a run.
+Produced by `peyda run`. This is an internal human-readable report for a run.
 It includes run settings, counts, discovered subdomains, resolved hosts, live
 HTTP/S services, JavaScript files, JavaScript route leads, API probes, API
 inventory rows, cloud candidates, and next actions.

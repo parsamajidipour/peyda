@@ -1,14 +1,14 @@
 # CLI Design
 
-`peyda` is moving from a playbook repository into a scope-first reconnaissance CLI.
-The repository still keeps the playbooks because they explain how to review and validate
-the data produced by the tool.
+`peyda` is an opinionated domain-to-recon-dataset CLI. The repository still
+keeps the playbooks because they explain how to review and validate the data
+produced by the tool.
 
 ## Current CLI
 
 ```bash
 go install ./cmd/peyda
-peyda example.com --profile balanced -p 50
+peyda example.com
 peyda example.com -silent
 peyda example.com -jsonl -o results.jsonl
 ```
@@ -17,7 +17,8 @@ Commands:
 
 | Command | Purpose |
 | --- | --- |
-| `peyda run` | Runs the complete recon pipeline for one scoped root domain |
+| `peyda example.com` | Runs the default recon pipeline and writes `results/example.com/` |
+| `peyda run` | Compatibility command for the same pipeline |
 | `peyda deps` | Checks, installs, or updates required recon dependencies |
 | `peyda init` | Creates a structured run folder |
 | `peyda config init` | Writes an example JSON config |
@@ -25,10 +26,11 @@ Commands:
 
 ## Design Goals
 
-- Produce normalized files that can be reviewed, diffed, and handed off.
-- Produce JSONL events for automation and text/Markdown reports for humans.
-- Produce default `[TYPE] [metadata] value` output for terminal review.
-- Score live assets so the manual review queue is explainable.
+- Produce `results/<target>/` as the stable researcher-facing dataset.
+- Keep `runs/<target>/<date>/` as internal execution history.
+- Produce JSONL events for automation and text/Markdown reports for internal run review.
+- Keep terminal human mode focused on progress and final counts.
+- Keep asset scoring as extended analysis, not the core product identity.
 - Keep subdomain normalization, exclusion filtering, and asset scoring native.
 - Keep API candidate selection, OpenAPI parsing, and inventory generation native.
 - Keep cloud and secret-looking lead extraction native with conservative redaction.
@@ -62,7 +64,7 @@ Profiles provide safe presets. CLI flags are for common one-off changes such as
 in JSON config controls the ProjectDiscovery command flags used internally.
 
 This keeps the normal command short while still allowing advanced users to tune
-`subfinder`, `dnsx`, `httpx`, and `katana` behavior.
+`subfinder`, `dnsx`, `httpx`, `naabu`, `gau`, and `katana` behavior.
 
 ## Roadmap
 

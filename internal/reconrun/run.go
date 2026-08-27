@@ -4,14 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/parsamajidipour/peyda/internal/apidiscovery"
 	"github.com/parsamajidipour/peyda/internal/cloud"
 	"github.com/parsamajidipour/peyda/internal/config"
+	"github.com/parsamajidipour/peyda/internal/dataset"
 	"github.com/parsamajidipour/peyda/internal/deps"
 	"github.com/parsamajidipour/peyda/internal/hostinfo"
 	"github.com/parsamajidipour/peyda/internal/jsrecon"
@@ -23,19 +26,36 @@ import (
 
 func Run(root string, cfg config.Config) error {
 	start := time.Now()
+	cfg.Target = normalizeTarget(cfg.Target)
+	if cfg.Target == "" {
+		return errors.New("target is required")
+	}
+	if !validTarget(cfg.Target) {
+		return fmt.Errorf("invalid target: %s", cfg.Target)
+	}
 	logOut := io.Discard
+	statusOut := io.Discard
+	if cfg.OutputFormat == "human" && !cfg.Silent {
+		statusOut = os.Stdout
+	}
+	status := func(message string) {
+		fmt.Fprintf(statusOut, "[INF] %s\n", message)
+	}
 
 	if !cfg.SkipDeps && cfg.Profile != config.ProfilePassive {
+		status("Preparing dependencies")
 		if err := deps.Run(root, deps.Ensure, logOut); err != nil {
 			return err
 		}
 	}
 
+	status("Initializing workspace")
 	runDir, err := Init(cfg)
 	if err != nil {
 		return err
 	}
 
+	status("Collecting WHOIS and DNS baseline")
 	if _, err := hostinfo.Run(hostinfo.Options{
 		RunDir:  runDir,
 		Target:  cfg.Target,
@@ -48,6 +68,7 @@ func Run(root string, cfg config.Config) error {
 
 	switch cfg.Profile {
 	case config.ProfilePassive:
+		status("Discovering passive subdomains")
 		_, err = subdomain.Run(subdomain.Options{
 			Root:    root,
 			RunDir:  runDir,
@@ -58,6 +79,7 @@ func Run(root string, cfg config.Config) error {
 			Out:     logOut,
 		})
 	default:
+		status("Discovering, resolving, and probing subdomains")
 		_, err = subdomain.Run(subdomain.Options{
 			Root:      root,
 			RunDir:    runDir,
@@ -76,6 +98,7 @@ func Run(root string, cfg config.Config) error {
 	switch cfg.Profile {
 	case config.ProfilePassive:
 	default:
+		status("Scanning optional ports and services")
 		if _, err := ports.Run(ports.Options{
 			RunDir:  runDir,
 			Profile: cfg.Profile,
@@ -85,6 +108,7 @@ func Run(root string, cfg config.Config) error {
 		}); err != nil {
 			fmt.Fprintf(logOut, "[peyda] port scan skipped or failed: %v\n", err)
 		}
+		status("Collecting historical URLs")
 		if err := urlrecon.RunGau(urlrecon.Options{
 			RunDir:  runDir,
 			Target:  cfg.Target,
@@ -94,6 +118,7 @@ func Run(root string, cfg config.Config) error {
 		}); err != nil {
 			fmt.Fprintf(logOut, "[peyda] gau URL collection skipped or failed: %v\n", err)
 		}
+		status("Crawling live targets and extracting JavaScript")
 		if _, err := jsrecon.Run(jsrecon.Options{
 			Root:           root,
 			RunDir:         runDir,
@@ -107,6 +132,7 @@ func Run(root string, cfg config.Config) error {
 		}); err != nil {
 			fmt.Fprintf(logOut, "[peyda] JS recon skipped or failed: %v\n", err)
 		}
+		status("Normalizing URLs, parameters, and endpoints")
 		if _, err := urlrecon.RunPostJS(urlrecon.Options{
 			RunDir:  runDir,
 			Target:  cfg.Target,
@@ -116,6 +142,7 @@ func Run(root string, cfg config.Config) error {
 		}); err != nil {
 			fmt.Fprintf(logOut, "[peyda] URL/parameter recon skipped or failed: %v\n", err)
 		}
+		status("Running extended API and cloud analysis")
 		if _, err := apidiscovery.Run(apidiscovery.Options{
 			Root:      root,
 			RunDir:    runDir,
@@ -130,6 +157,7 @@ func Run(root string, cfg config.Config) error {
 		}
 	}
 
+	status("Writing internal reports")
 	if cfg.WriteJSONL {
 		if err := report.WriteJSONL(runDir); err != nil {
 			return err
@@ -142,13 +170,28 @@ func Run(root string, cfg config.Config) error {
 		return err
 	}
 
-	return report.WriteCLIOutput(os.Stdout, runDir, cfg, time.Since(start))
+	duration := time.Since(start)
+	status("Building final dataset")
+	summary, err := dataset.Export(dataset.Options{
+		RunDir:      runDir,
+		Target:      cfg.Target,
+		ResultsRoot: cfg.ResultsRoot,
+		Duration:    duration,
+		CompletedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		return err
+	}
+	return report.WriteDatasetOutput(os.Stdout, cfg, summary)
 }
 
 func Init(cfg config.Config) (string, error) {
-	safeTarget := strings.TrimSuffix(strings.ToLower(cfg.Target), "/")
+	safeTarget := normalizeTarget(cfg.Target)
 	if safeTarget == "" {
 		return "", errors.New("target is required")
+	}
+	if !validTarget(safeTarget) {
+		return "", fmt.Errorf("invalid target: %s", cfg.Target)
 	}
 	runDate := cfg.RunDate
 	if runDate == "" {
@@ -186,12 +229,13 @@ func Init(cfg config.Config) (string, error) {
 	}
 
 	meta := fmt.Sprintf(
-		"target=%s\nrun_date=%s\nprofile=%s\ncreated_utc=%s\noutput_root=%s\ncrawl_depth=%d\ncrawl_duration=%s\nmax_domain_pages=%d\n",
+		"target=%s\nrun_date=%s\nprofile=%s\ncreated_utc=%s\noutput_root=%s\nresults_root=%s\ncrawl_depth=%d\ncrawl_duration=%s\nmax_domain_pages=%d\n",
 		safeTarget,
 		runDate,
 		cfg.Profile,
 		time.Now().UTC().Format(time.RFC3339),
 		outputRoot,
+		cfg.ResultsRoot,
 		cfg.CrawlDepth,
 		cfg.CrawlDuration,
 		cfg.MaxDomainPages,
@@ -200,6 +244,30 @@ func Init(cfg config.Config) (string, error) {
 		return "", err
 	}
 	return runDir, nil
+}
+
+func normalizeTarget(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	value = strings.TrimSuffix(value, "/")
+	if parsed, err := url.Parse(value); err == nil && parsed.Hostname() != "" {
+		value = parsed.Hostname()
+	}
+	value = strings.TrimPrefix(value, "*.")
+	value = strings.TrimSuffix(value, ".")
+	return value
+}
+
+func validTarget(host string) bool {
+	if len(host) == 0 || len(host) > 253 || strings.Contains(host, "..") {
+		return false
+	}
+	label := regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
+	for _, part := range strings.Split(host, ".") {
+		if !label.MatchString(part) {
+			return false
+		}
+	}
+	return true
 }
 
 func absolutePath(path string) (string, error) {

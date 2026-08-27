@@ -6,47 +6,56 @@
 [![Markdown quality](https://github.com/parsamajidipour/peyda/actions/workflows/markdown.yml/badge.svg)](https://github.com/parsamajidipour/peyda/actions/workflows/markdown.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`peyda` turns messy reconnaissance into one repeatable workflow: subdomain discovery, DNS resolution, live HTTP probing, JavaScript crawling, route extraction, API discovery, cloud hints, JSONL events, and human-readable reports.
+`peyda` is an opinionated reconnaissance CLI that turns one authorized domain into a clean, reusable recon dataset.
 
-It is designed for authorized targets. The output is a review queue, not a vulnerability report.
-
-## What It Does
-
-```text
-target domain
-  -> WHOIS registration lookup
-  -> DNS baseline records
-  -> passive subdomain discovery
-  -> subdomain resolution
-  -> live HTTP/S probing
-  -> port discovery and service enrichment
-  -> historical URL collection
-  -> crawling
-  -> parameter discovery
-  -> JavaScript endpoint extraction
-  -> asset scoring
-  -> API documentation/schema probing
-  -> cloud and secret-looking lead extraction
-  -> human output, JSON/JSONL, text report
+```bash
+peyda example.com
 ```
 
-`peyda` uses proven recon tools where they are strongest, then normalizes and explains the output with native Go logic.
+Peyda collects useful reconnaissance data, normalizes it, deduplicates it, and writes the final dataset to:
 
-| Stage | Tooling | Output |
-| --- | --- | --- |
-| WHOIS | `whois` | `normalized/whois.tsv` |
-| DNS baseline | `dig` | `normalized/dns-records.tsv` |
-| Subdomain discovery | `subfinder` + `crt.sh` | `normalized/subdomains.txt` |
-| DNS resolution | `dnsx` | `normalized/resolved-hosts.txt` |
-| HTTP probing | `httpx` | `normalized/live-hosts.txt` |
-| Port discovery | `naabu` + `nmap` | `normalized/open-ports.tsv` |
-| Historical URLs | `gau` | `normalized/urls.txt` |
-| Asset scoring | Native Go | `normalized/asset-scores.tsv` |
-| JavaScript recon | `katana` + `xnLinkFinder` + native Go parsing | `normalized/js-files.txt`, `normalized/js-endpoints.txt`, `notes/js-leads.tsv` |
-| Parameter discovery | Native URL parsing + optional `Arjun` | `normalized/parameters.tsv` |
-| API discovery | `httpx` + native OpenAPI parsing | `normalized/api-docs-probed.txt`, `normalized/api-inventory.tsv` |
-| Cloud hints | Native Go | `notes/cloud-candidates.tsv` |
-| Reporting | Native Go | `notes/recon-report.txt`, `notes/recon-summary.md`, `normalized/recon-events.jsonl` |
+```text
+results/example.com/
+```
+
+It is designed for authorized targets. Peyda is not a vulnerability scanner, exploitation framework, or finding generator.
+
+## What You Get
+
+After a run, the stable public output contract is:
+
+```text
+results/example.com/
+├── subdomains.txt
+├── resolved.txt
+├── live.txt
+├── urls.txt
+├── parameters.txt
+├── javascript.txt
+├── endpoints.txt
+├── dns.json
+├── http.json
+├── technologies.json
+└── summary.json
+```
+
+These files are meant to be piped into other tools, reviewed manually, or archived as a clean dataset.
+
+| File | Contains |
+| --- | --- |
+| `subdomains.txt` | Unique in-scope hostnames discovered for the target |
+| `resolved.txt` | In-scope hostnames that resolved through DNS |
+| `live.txt` | Reachable HTTP/S URLs with the working scheme preserved |
+| `urls.txt` | Normalized unique URLs from historical sources and crawling |
+| `parameters.txt` | Unique parameter names only |
+| `javascript.txt` | Unique in-scope JavaScript URLs |
+| `endpoints.txt` | Interesting relative or in-scope absolute routes/endpoints |
+| `dns.json` | Structured DNS records grouped by host |
+| `http.json` | Asset-oriented HTTP metadata |
+| `technologies.json` | Best-effort technology hints per host |
+| `summary.json` | Counts derived from the final exported dataset |
+
+Internal artifacts are still preserved under `runs/example.com/YYYY-MM-DD/` for debugging and reproducibility.
 
 ## Banner
 
@@ -121,25 +130,61 @@ peyda deps
 
 ## Quick Start
 
-Run a normal balanced recon:
+Run the default recon pipeline:
 
 ```bash
-peyda run example.com --profile balanced
+peyda example.com
+```
+
+At the end, Peyda prints a concise summary:
+
+```text
+PEYDA
+
+Target: example.com
+
+Subdomains       481
+Resolved         302
+Live hosts       174
+URLs             18342
+Parameters       91
+JavaScript       428
+Endpoints        637
+
+Output: results/example.com/
+Duration: 2m41s
+```
+
+The main dataset is immediately available at:
+
+```bash
+ls results/example.com/
+```
+
+Compatibility with the explicit `run` command remains:
+
+```bash
+peyda run example.com
 ```
 
 Run with a lower HTTP probe rate:
 
 ```bash
-peyda run example.com --profile balanced -p 25
+peyda example.com -p 25
 ```
 
-Write output to a specific directory:
+Choose a base output directory:
 
 ```bash
-peyda run example.com --profile balanced --output-dir ~/recon-results
+peyda example.com --output-dir ~/recon-output
 ```
 
-If `--output-dir` is not provided, `peyda` writes artifacts to `./runs` under the directory where the command was executed.
+This creates:
+
+```text
+~/recon-output/results/example.com/
+~/recon-output/runs/example.com/YYYY-MM-DD/
+```
 
 Save the final CLI output to a file:
 
@@ -179,7 +224,7 @@ Run a deeper pass:
 peyda run example.com --profile deep
 ```
 
-Open the final text report:
+Review internal run notes when you need troubleshooting detail:
 
 ```bash
 latest_run="$(ls -td runs/example.com/* | head -1)"
@@ -188,44 +233,47 @@ less "$latest_run/notes/recon-report.txt"
 
 ## Example Run Output
 
-By default, `peyda` prints human-readable result lines:
+By default, `peyda` prints progress and a final summary, not every collected result:
 
 ```text
-[WHOIS] [registrar] NameCheap
-[DNS] [A] example.com -> 1.2.3.4
-[DNS] [MX] example.com -> mail.example.com
+PEYDA
 
-[SUB] api.example.com
-[SUB] admin.example.com
-
-[HTTP] [200] [nginx] https://api.example.com
-[HTTP] [403] [cloudflare] https://admin.example.com
-
-[PORT] [443/https] api.example.com
-[PORT] [8080/http] api.example.com
-
-[URL] https://example.com/login
-[PARAM] [redirect] https://example.com/login?redirect=
-[JS] https://example.com/assets/app.js
-[JS-ENDPOINT] /api/v1/users
-
-----------------------------------------
-Scan completed in 47.2s
+Target: example.com
 
 Subdomains       31
-Live Hosts       18
-IPs              7
-Open Ports       24
+Resolved         24
+Live hosts       18
 URLs             683
 Parameters       42
 JavaScript       27
-JS Endpoints     91
-----------------------------------------
+Endpoints        91
+
+Output: results/example.com/
+Duration: 47s
 ```
 
-Start with `notes/recon-report.txt`. It is the main human-readable output.
+Open `results/example.com/` first. Use `runs/example.com/YYYY-MM-DD/` only when you need raw tool output or troubleshooting details.
 
 ## Output Layout
+
+The final dataset:
+
+```text
+results/example.com/
+├── subdomains.txt
+├── resolved.txt
+├── live.txt
+├── urls.txt
+├── parameters.txt
+├── javascript.txt
+├── endpoints.txt
+├── dns.json
+├── http.json
+├── technologies.json
+└── summary.json
+```
+
+Internal artifacts:
 
 ```text
 runs/example.com/YYYY-MM-DD/
@@ -268,7 +316,9 @@ runs/example.com/YYYY-MM-DD/
 └── screenshots/
 ```
 
-This tree is created under `./runs` by default. If you pass `--output-dir ~/recon-results`, the same tree is created under `~/recon-results`.
+By default, `results/` and `runs/` are created under the directory where `peyda`
+was executed. If you pass `--output-dir ~/recon-output`, Peyda writes to
+`~/recon-output/results/` and `~/recon-output/runs/`.
 
 ## Profiles
 
@@ -997,7 +1047,15 @@ Broader DNS recon:
 
 ## Reviewing Results
 
-Open the text report:
+Start with the final dataset:
+
+```bash
+cd results/example.com
+wc -l subdomains.txt resolved.txt live.txt urls.txt parameters.txt javascript.txt endpoints.txt
+jq . summary.json
+```
+
+Open the internal text report when you need run details:
 
 ```bash
 latest_run="$(ls -td runs/example.com/* | head -1)"

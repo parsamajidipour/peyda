@@ -19,6 +19,7 @@ type Config struct {
 	Target         string `json:"target"`
 	RunDate        string `json:"run_date"`
 	OutputRoot     string `json:"output_root"`
+	ResultsRoot    string `json:"results_root"`
 	Profile        string `json:"profile"`
 	ProbeRate      int    `json:"probe_rate"`
 	CrawlRate      int    `json:"crawl_rate"`
@@ -164,10 +165,11 @@ func Load(path string) (Config, error) {
 
 func Default() Config {
 	return Config{
-		OutputRoot: "runs",
-		Profile:    ProfileBalanced,
-		WriteJSONL: true,
-		Tools:      DefaultTools(),
+		OutputRoot:  "runs",
+		ResultsRoot: "results",
+		Profile:     ProfileBalanced,
+		WriteJSONL:  true,
+		Tools:       DefaultTools(),
 	}
 }
 
@@ -225,6 +227,9 @@ func DefaultTools() Tools {
 func (c *Config) ApplyProfileDefaults() error {
 	if c.OutputRoot == "" {
 		c.OutputRoot = "runs"
+	}
+	if c.ResultsRoot == "" {
+		c.ResultsRoot = "results"
 	}
 	if c.Profile == "" {
 		c.Profile = ProfileBalanced
@@ -384,6 +389,8 @@ func sameStringsFold(a, b []string) bool {
 func Example() Config {
 	cfg := Default()
 	cfg.Target = "example.com"
+	cfg.OutputRoot = "runs"
+	cfg.ResultsRoot = "results"
 	cfg.ProbeRate = 50
 	cfg.CrawlRate = 10
 	cfg.CrawlDepth = 1
