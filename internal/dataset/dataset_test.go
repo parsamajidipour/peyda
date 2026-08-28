@@ -69,13 +69,16 @@ func TestExportCreatesStableDataset(t *testing.T) {
 	assertLines(t, filepath.Join(resultDir, "endpoints.txt"), []string{"/api/v1/users", "https://api.example.com/v1/orders"})
 	reconText := readText(t, filepath.Join(resultDir, "recon.txt"))
 	for _, want := range []string{
-		"PEYDA RECON REPORT",
-		"[WHOIS] [registrar] Example Registrar",
-		"[DNS] [A] example.com -> 1.2.3.4",
-		"[HTTP] [200] [Go,nginx] https://api.example.com | API",
-		"[PORT] [443/https] api.example.com | source=naabu,nmap",
-		"[PARAM] [id] https://api.example.com/users?id= | source=url",
-		"[JS-ENDPOINT] [api,relative,user] /api/v1/users",
+		"# PEYDA RECON REPORT",
+		"EXECUTIVE SUMMARY",
+		"Registrar        Example Registrar",
+		"A\napi.example.com -> 2.2.2.2\nexample.com -> 1.2.3.4",
+		"[01] api.example.com",
+		"URL              https://api.example.com",
+		"443/tcp          https",
+		"PARAMETERS\n==========\nid\nredirect",
+		"[api,relative,user] /api/v1/users",
+		"RAW / EXTENDED ARTIFACTS",
 	} {
 		if !strings.Contains(reconText, want) {
 			t.Fatalf("recon.txt missing %q:\n%s", want, reconText)

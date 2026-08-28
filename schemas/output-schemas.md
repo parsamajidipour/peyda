@@ -42,22 +42,53 @@ deduplicated item per line and are sorted whenever practical.
 | `javascript.txt` | In-scope JavaScript URLs |
 | `endpoints.txt` | Relative endpoints or in-scope absolute HTTP/S/WebSocket URLs |
 
-`recon.txt` uses a stable tagged plain-text format:
+`recon.txt` uses a structured plain-text report format:
 
 ```text
-PEYDA RECON REPORT
-==============================================================================
-Target             example.com
+# PEYDA RECON REPORT
 
-[WHOIS] [registrar] Example Registrar
-[DNS] [A] example.com -> 1.2.3.4
-[SUB] api.example.com
-[HTTP] [200] [Go,nginx] https://api.example.com | API
-[PORT] [443/https] api.example.com | source=naabu,nmap
-[URL] https://api.example.com/users?id=1
-[PARAM] [id] https://api.example.com/users?id= | source=url
-[JS] https://example.com/assets/app.js
-[JS-ENDPOINT] [api,relative] /api/v1/users
+TARGET
+Domain           example.com
+Completed        2026-08-27T12:00:00Z
+Duration         2m41s
+Dataset          results/example.com
+Artifacts        runs/example.com/2026-08-27
+
+==============================================================================
+EXECUTIVE SUMMARY
+=================
+Subdomains            24
+Resolved              19
+Live Hosts            12
+Unique IPs             8
+Open Ports            31
+URLs               1,428
+Parameters            47
+JavaScript            83
+Endpoints            214
+
+==============================================================================
+ASSETS
+======
+[01] api.example.com
+
+HTTP
+URL              https://api.example.com
+Status           200
+Technology       nginx, Laravel
+
+Ports
+443/tcp          https
+
+==============================================================================
+JAVASCRIPT
+==========
+Files                  83
+Endpoints             214
+Source Maps             2
+
+Extracted Endpoints
+[api,relative,user] /api/v1/users
 ```
 
 `dns.json` is an array of host records:

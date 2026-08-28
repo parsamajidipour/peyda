@@ -1070,25 +1070,72 @@ agent, or attach to your own notes. It keeps the focused files available while
 also showing the full target story in one place:
 
 ```text
-PEYDA RECON REPORT
-==============================================================================
-Target             example.com
-Completed at       2026-08-27T12:00:00Z
-Duration           2m41s
+# PEYDA RECON REPORT
+
+TARGET
+Domain           example.com
+Completed        2026-08-27T12:00:00Z
+Duration         2m41s
+Dataset          results/example.com
+Artifacts        runs/example.com/2026-08-27
 
 ==============================================================================
-HUNTING QUEUES
-==============================================================================
-High-signal endpoints
----------------------
-[QUEUE] [endpoint] /api/v1/users
-[QUEUE] [endpoint] /admin/login
+EXECUTIVE SUMMARY
+=================
+Subdomains            24
+Resolved              19
+Live Hosts            12
+Unique IPs             8
+Open Ports            31
+URLs               1,428
+Parameters            47
+JavaScript            83
+Endpoints            214
 
 ==============================================================================
-ENDPOINTS
+RECON HIGHLIGHTS
+================
+Live Assets
+12 HTTP/S services
+
+Technologies
+Cloudflare
+nginx
+Next.js
+
+Interesting Surface
+47 parameters
+214 JS endpoints
+6 authentication-related URLs
+
 ==============================================================================
-[JS-ENDPOINT] [api,auth,relative] /api/v1/auth/login
-[JS-ENDPOINT] [api,absolute] https://api.example.com/v2/users
+ASSETS
+======
+[01] api.example.com
+
+DNS
+IP               1.2.3.4
+CNAME            -
+
+HTTP
+URL              https://api.example.com
+Status           200
+Title            API
+Technology       nginx, Laravel
+
+Ports
+443/tcp          https
+
+==============================================================================
+JAVASCRIPT
+==========
+Files                  83
+Endpoints             214
+Source Maps             2
+
+Extracted Endpoints
+[api,auth,relative] /api/v1/auth/login
+[absolute,api] https://api.example.com/v2/users
 ```
 
 Open the internal run report when you need raw tool troubleshooting details:

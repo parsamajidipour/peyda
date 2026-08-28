@@ -300,222 +300,420 @@ func buildParameterAssets(runDir string) []ParameterAsset {
 
 func renderReconText(ds builtDataset, summary Summary, runDir string) string {
 	var b strings.Builder
-	line := strings.Repeat("=", 78)
-	thin := strings.Repeat("-", 78)
+	resultDir := displayPath(summary.ResultDir)
+	artifactDir := displayPath(runDir)
 
-	fmt.Fprintln(&b, "PEYDA RECON REPORT")
-	fmt.Fprintln(&b, line)
-	fmt.Fprintf(&b, "%-18s %s\n", "Target", summary.Target)
-	fmt.Fprintf(&b, "%-18s %s\n", "Completed at", summary.CompletedAt)
-	fmt.Fprintf(&b, "%-18s %s\n", "Duration", formatDuration(time.Duration(summary.DurationSeconds*float64(time.Second))))
-	fmt.Fprintf(&b, "%-18s %s\n", "Results", displayPath(summary.ResultDir))
-	fmt.Fprintf(&b, "%-18s %s\n", "Run artifacts", displayPath(runDir))
+	fmt.Fprintln(&b, "# PEYDA RECON REPORT")
 	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "This file is a human-readable and agent-friendly consolidation of Peyda's")
-	fmt.Fprintln(&b, "normalized recon dataset. Validate authorization and scope before acting on")
-	fmt.Fprintln(&b, "any target, host, URL, port, or endpoint listed here.")
+	fmt.Fprintln(&b, "TARGET")
+	writeField(&b, "Domain", summary.Target)
+	writeField(&b, "Completed", summary.CompletedAt)
+	writeField(&b, "Duration", formatDuration(time.Duration(summary.DurationSeconds*float64(time.Second))))
+	writeField(&b, "Dataset", resultDir)
+	writeField(&b, "Artifacts", artifactDir)
 	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "Scope note      Authorized targets only. Validate program scope before testing.")
 
-	writeReconSection(&b, "SUMMARY")
-	fmt.Fprintf(&b, "%-18s %d\n", "Subdomains", len(ds.Subdomains))
-	fmt.Fprintf(&b, "%-18s %d\n", "Resolved", len(ds.Resolved))
-	fmt.Fprintf(&b, "%-18s %d\n", "Live hosts", len(ds.Live))
-	fmt.Fprintf(&b, "%-18s %d\n", "IPs", len(ds.IPs))
-	fmt.Fprintf(&b, "%-18s %d\n", "Open ports", len(ds.Ports))
-	fmt.Fprintf(&b, "%-18s %d\n", "URLs", len(ds.URLs))
-	fmt.Fprintf(&b, "%-18s %d\n", "Parameters", len(ds.Parameters))
-	fmt.Fprintf(&b, "%-18s %d\n", "JavaScript", len(ds.JavaScript))
-	fmt.Fprintf(&b, "%-18s %d\n", "Endpoints", len(ds.Endpoints))
+	writeReportSection(&b, "EXECUTIVE SUMMARY")
+	writeCount(&b, "Subdomains", len(ds.Subdomains))
+	writeCount(&b, "Resolved", len(ds.Resolved))
+	writeCount(&b, "Live Hosts", len(ds.Live))
+	writeCount(&b, "Unique IPs", len(ds.IPs))
+	writeCount(&b, "Open Ports", len(ds.Ports))
+	writeCount(&b, "URLs", len(ds.URLs))
+	writeCount(&b, "Parameters", len(ds.Parameters))
+	writeCount(&b, "JavaScript", len(ds.JavaScript))
+	writeCount(&b, "Endpoints", len(ds.Endpoints))
+
+	writeReportSection(&b, "RECON HIGHLIGHTS")
+	fmt.Fprintln(&b, "Live Assets")
+	fmt.Fprintf(&b, "%s HTTP/S services\n\n", comma(len(ds.Live)))
+	fmt.Fprintln(&b, "Technologies")
+	writePlainValues(&b, collectTechnologies(ds), 25)
 	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "Interesting Surface")
+	fmt.Fprintf(&b, "%s parameters\n", comma(len(ds.Parameters)))
+	fmt.Fprintf(&b, "%s JS endpoints\n", comma(len(ds.Endpoints)))
+	fmt.Fprintf(&b, "%s authentication-related URLs\n", comma(len(authLikeURLs(ds.URLs))))
+	fmt.Fprintf(&b, "%s high-signal endpoints\n", comma(len(highSignalEndpoints(ds.Endpoints))))
 
-	writeReconSection(&b, "HUNTING QUEUES")
-	writeReconQueue(&b, "High-signal endpoints", highSignalEndpoints(ds.Endpoints), "[QUEUE] [endpoint]", 50)
-	writeReconQueue(&b, "Parameterized URLs", parameterizedURLs(ds.URLs), "[QUEUE] [param-url]", 50)
-	writeReconQueue(&b, "Admin/Auth/Login URLs", authLikeURLs(ds.URLs), "[QUEUE] [auth-url]", 50)
-	writeReconQueue(&b, "Interesting live hosts", interestingHTTP(ds.HTTP), "[QUEUE] [host]", 50)
+	writeReportSection(&b, "DOMAIN")
+	fmt.Fprintln(&b, "WHOIS")
+	writeField(&b, "Registrar", whoisValue(ds.WHOIS, "registrar"))
+	writeField(&b, "Created", whoisValue(ds.WHOIS, "created"))
+	writeField(&b, "Updated", whoisValue(ds.WHOIS, "updated"))
+	writeField(&b, "Expires", whoisValue(ds.WHOIS, "expires"))
+	writeField(&b, "DNSSEC", findRawWHOISValue(ds.RawWHOIS, "DNSSEC"))
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "Name Servers")
+	writePlainValues(&b, nameServers(ds), 50)
 
-	writeReconSection(&b, "WHOIS")
-	if len(ds.WHOIS) == 0 {
-		writeNone(&b)
-	} else {
-		for _, field := range ds.WHOIS {
-			fmt.Fprintf(&b, "[WHOIS] [%s] %s\n", field.Key, field.Value)
-		}
+	writeReportSection(&b, "DNS")
+	writeDNSGroup(&b, "A", dnsValues(ds.DNS, "A"))
+	writeDNSGroup(&b, "AAAA", dnsValues(ds.DNS, "AAAA"))
+	writeDNSGroup(&b, "MX", dnsValues(ds.DNS, "MX"))
+	writeDNSGroup(&b, "NS", dnsValues(ds.DNS, "NS"))
+	writeDNSGroup(&b, "TXT", dnsValues(ds.DNS, "TXT"))
+	writeDNSGroup(&b, "CNAME", dnsValues(ds.DNS, "CNAME"))
+	writeDNSGroup(&b, "SOA", dnsValues(ds.DNS, "SOA"))
+	writeDNSGroup(&b, "CAA", dnsValues(ds.DNS, "CAA"))
+	writeDNSGroup(&b, "DNSKEY", dnsValues(ds.DNS, "DNSKEY"))
+	writeDNSGroup(&b, "DS", dnsValues(ds.DNS, "DS"))
+
+	writeReportSection(&b, "ASSETS")
+	writeAssetBlocks(&b, ds)
+
+	writeReportSection(&b, "URL SURFACE")
+	writeCount(&b, "Total", len(ds.URLs))
+	fmt.Fprintln(&b)
+	writeURLBucket(&b, "Authentication", authLikeURLs(ds.URLs), 75)
+	writeURLBucket(&b, "API", apiLikeURLs(ds.URLs), 100)
+	writeURLBucket(&b, "Parameterized", parameterizedURLs(ds.URLs), 100)
+	writeURLBucket(&b, "Other", otherURLs(ds.URLs), 100)
+
+	writeReportSection(&b, "PARAMETERS")
+	writePlainValues(&b, ds.Parameters, 300)
+	if len(ds.Parameters) > 300 {
+		fmt.Fprintf(&b, "... %s more in %s\n", comma(len(ds.Parameters)-300), filepath.Join(resultDir, "parameters.txt"))
 	}
-	if len(ds.RawWHOIS) > 0 {
-		fmt.Fprintln(&b)
-		fmt.Fprintln(&b, "RAW WHOIS")
-		fmt.Fprintln(&b, thin)
-		for _, line := range ds.RawWHOIS {
-			fmt.Fprintf(&b, "%s\n", line)
-		}
-	}
+
+	writeReportSection(&b, "JAVASCRIPT")
+	writeCount(&b, "Files", len(ds.JavaScript))
+	writeCount(&b, "Endpoints", len(ds.Endpoints))
+	writeCount(&b, "Source Maps", len(ds.SourceMaps))
 	fmt.Fprintln(&b)
-
-	writeReconSection(&b, "DNS")
-	if len(ds.DNS) == 0 {
-		writeNone(&b)
-	} else {
-		for _, record := range ds.DNS {
-			writeDNSValues(&b, record.Host, "A", record.A)
-			writeDNSValues(&b, record.Host, "AAAA", record.AAAA)
-			writeDNSValues(&b, record.Host, "CNAME", record.CNAME)
-			writeDNSValues(&b, record.Host, "MX", record.MX)
-			writeDNSValues(&b, record.Host, "NS", record.NS)
-			writeDNSValues(&b, record.Host, "TXT", record.TXT)
-			writeDNSValues(&b, record.Host, "SOA", record.SOA)
-			writeDNSValues(&b, record.Host, "CAA", record.CAA)
-			writeDNSValues(&b, record.Host, "DNSKEY", record.DNSKEY)
-			writeDNSValues(&b, record.Host, "DS", record.DS)
-		}
-	}
-	fmt.Fprintln(&b)
-
-	writeReconSection(&b, "SUBDOMAINS")
-	writeReconList(&b, "All discovered in-scope hosts", ds.Subdomains, "[SUB]")
-	writeReconList(&b, "Resolved hosts", ds.Resolved, "[RESOLVED]")
-	writeReconList(&b, "Observed IPs", ds.IPs, "[IP]")
-
-	writeReconSection(&b, "HTTP SERVICES")
-	if len(ds.HTTP) == 0 {
-		writeNone(&b)
-	} else {
-		for _, asset := range ds.HTTP {
-			status := "-"
-			if asset.Status > 0 {
-				status = strconv.Itoa(asset.Status)
-			}
-			tech := "-"
-			if len(asset.Technologies) > 0 {
-				tech = strings.Join(asset.Technologies, ",")
-			}
-			title := strings.TrimSpace(asset.Title)
-			if title == "" {
-				title = "-"
-			}
-			fmt.Fprintf(&b, "[HTTP] [%s] [%s] %s | %s\n", status, tech, asset.URL, title)
-		}
+	fmt.Fprintln(&b, "JavaScript Files")
+	writePlainValues(&b, ds.JavaScript, 30)
+	if len(ds.JavaScript) > 30 {
+		fmt.Fprintf(&b, "... %s more in %s\n", comma(len(ds.JavaScript)-30), filepath.Join(resultDir, "javascript.txt"))
 	}
 	fmt.Fprintln(&b)
-
-	writeReconSection(&b, "OPEN PORTS")
-	if len(ds.Ports) == 0 {
-		writeNone(&b)
-	} else {
-		for _, port := range ds.Ports {
-			service := port.Service
-			if service == "" {
-				service = "unknown"
-			}
-			source := port.Source
-			if source == "" {
-				source = "unknown"
-			}
-			fmt.Fprintf(&b, "[PORT] [%d/%s] %s | source=%s\n", port.Port, service, port.Host, source)
-		}
+	fmt.Fprintln(&b, "Extracted Endpoints")
+	writeTaggedEndpoints(&b, ds.Endpoints, 250)
+	if len(ds.Endpoints) > 250 {
+		fmt.Fprintf(&b, "... %s more in %s\n", comma(len(ds.Endpoints)-250), filepath.Join(resultDir, "endpoints.txt"))
 	}
 	fmt.Fprintln(&b)
-
-	writeReconSection(&b, "URLS")
-	writeReconList(&b, "Historical and crawled URLs", ds.URLs, "[URL]")
-
-	writeReconSection(&b, "PARAMETERS")
-	if len(ds.ParamDetails) > 0 {
-		for _, param := range ds.ParamDetails {
-			source := param.Source
-			if source == "" {
-				source = "unknown"
-			}
-			if param.URL == "" {
-				fmt.Fprintf(&b, "[PARAM] [%s] source=%s\n", param.Name, source)
-			} else {
-				fmt.Fprintf(&b, "[PARAM] [%s] %s | source=%s\n", param.Name, param.URL, source)
-			}
-		}
-	} else {
-		writeReconList(&b, "Parameter names", ds.Parameters, "[PARAM]")
+	fmt.Fprintln(&b, "Source Maps")
+	writePlainValues(&b, ds.SourceMaps, 50)
+	if len(ds.SourceMaps) > 50 {
+		fmt.Fprintf(&b, "... %s more in %s\n", comma(len(ds.SourceMaps)-50), filepath.Join(artifactDir, "normalized/source-map-candidates.txt"))
 	}
+
+	writeReportSection(&b, "API AND CLOUD SIGNALS")
+	fmt.Fprintln(&b, "API Inventory")
+	writePlainValues(&b, ds.APIMethods, 100)
 	fmt.Fprintln(&b)
-
-	writeReconSection(&b, "JAVASCRIPT")
-	writeReconList(&b, "JavaScript files", ds.JavaScript, "[JS]")
-	writeReconList(&b, "Source map candidates", ds.SourceMaps, "[SOURCE-MAP]")
-	writeReconList(&b, "High-signal JavaScript lines", ds.JSSignals, "[JS-SIGNAL]")
-
-	writeReconSection(&b, "ENDPOINTS")
-	if len(ds.Endpoints) == 0 {
-		writeNone(&b)
-	} else {
-		for _, endpoint := range ds.Endpoints {
-			fmt.Fprintf(&b, "[JS-ENDPOINT] [%s] %s\n", endpointTags(endpoint), endpoint)
-		}
+	fmt.Fprintln(&b, "Cloud / Secret Candidates")
+	writePlainValues(&b, ds.CloudSignals, 100)
+	fmt.Fprintln(&b)
+	fmt.Fprintln(&b, "JavaScript Signals")
+	writePlainValues(&b, ds.JSSignals, 50)
+	if len(ds.JSSignals) > 50 {
+		fmt.Fprintf(&b, "... %s more in %s\n", comma(len(ds.JSSignals)-50), filepath.Join(artifactDir, "normalized/js-interesting-lines.txt"))
 	}
-	fmt.Fprintln(&b)
 
-	writeReconSection(&b, "API AND CLOUD SIGNALS")
-	writeReconList(&b, "API inventory rows", ds.APIMethods, "[API]")
-	writeReconList(&b, "Cloud and secret-looking candidates", ds.CloudSignals, "[CLOUD]")
+	writeReportSection(&b, "DATASET")
+	for _, name := range []string{
+		"subdomains.txt",
+		"resolved.txt",
+		"live.txt",
+		"ips.txt",
+		"ports.txt",
+		"urls.txt",
+		"parameters.txt",
+		"javascript.txt",
+		"endpoints.txt",
+		"dns.json",
+		"http.json",
+		"ports.json",
+		"technologies.json",
+		"summary.json",
+	} {
+		fmt.Fprintln(&b, filepath.Join(resultDir, name))
+	}
 
-	writeReconSection(&b, "AGENT HANDOFF")
-	fmt.Fprintln(&b, "[NEXT] Review live hosts and HTTP metadata before endpoint testing.")
-	fmt.Fprintln(&b, "[NEXT] Prioritize auth, admin, user/account, upload, export, webhook, and API routes.")
-	fmt.Fprintln(&b, "[NEXT] Treat cloud and secret-looking strings as leads; validate ownership first.")
-	fmt.Fprintln(&b, "[NEXT] Use JSON/TXT sibling files for automation and this file for context.")
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, line)
+	writeReportSection(&b, "RAW / EXTENDED ARTIFACTS")
+	writeField(&b, "Full WHOIS", filepath.Join(artifactDir, "raw/whois.txt"))
+	writeField(&b, "Raw JavaScript", filepath.Join(artifactDir, "raw/js/"))
+	writeField(&b, "JS Signals", filepath.Join(artifactDir, "normalized/js-interesting-lines.txt"))
+	writeField(&b, "Source Maps", filepath.Join(artifactDir, "normalized/source-map-candidates.txt"))
+	writeField(&b, "Port Scan", filepath.Join(artifactDir, "raw/naabu.txt"))
+	writeField(&b, "Nmap", filepath.Join(artifactDir, "raw/nmap/"))
+	writeField(&b, "HTTPX", filepath.Join(artifactDir, "raw/httpx-rich.jsonl"))
+	writeField(&b, "GAU", filepath.Join(artifactDir, "raw/gau-urls.txt"))
+	writeField(&b, "Katana", filepath.Join(artifactDir, "raw/katana-urls.all.txt"))
+	writeField(&b, "JSONL Events", filepath.Join(artifactDir, "normalized/recon-events.jsonl"))
+
+	writeReportSection(&b, "AGENT HANDOFF")
+	fmt.Fprintln(&b, "1. Start with RECON HIGHLIGHTS and ASSETS to understand the live surface.")
+	fmt.Fprintln(&b, "2. Use URL SURFACE and PARAMETERS for input handling, redirect, IDOR, and access-control review.")
+	fmt.Fprintln(&b, "3. Use JAVASCRIPT extracted endpoints as route leads, not proof of vulnerability.")
+	fmt.Fprintln(&b, "4. Validate ownership before acting on cloud, CDN, third-party, or shared infrastructure signals.")
+	fmt.Fprintln(&b, "5. Use the DATASET files for automation when this report is too condensed.")
+
+	writeReportSection(&b, "END OF REPORT")
 	return b.String()
 }
 
-func writeReconSection(b *strings.Builder, title string) {
+func writeReportSection(b *strings.Builder, title string) {
 	fmt.Fprintln(b)
 	fmt.Fprintln(b, strings.Repeat("=", 78))
 	fmt.Fprintln(b, title)
-	fmt.Fprintln(b, strings.Repeat("=", 78))
+	fmt.Fprintln(b, strings.Repeat("=", len(title)))
 }
 
-func writeReconList(b *strings.Builder, title string, values []string, prefix string) {
-	fmt.Fprintf(b, "%s\n", title)
-	fmt.Fprintln(b, strings.Repeat("-", len(title)))
-	if len(values) == 0 {
-		writeNone(b)
-		fmt.Fprintln(b)
-		return
+func writeField(b *strings.Builder, name, value string) {
+	if strings.TrimSpace(value) == "" {
+		value = "-"
 	}
-	for _, value := range values {
-		fmt.Fprintf(b, "%s %s\n", prefix, value)
-	}
-	fmt.Fprintln(b)
+	fmt.Fprintf(b, "%-16s %s\n", name, reportValue(value))
 }
 
-func writeReconQueue(b *strings.Builder, title string, values []string, prefix string, limit int) {
-	fmt.Fprintf(b, "%s\n", title)
-	fmt.Fprintln(b, strings.Repeat("-", len(title)))
+func writeCount(b *strings.Builder, name string, value int) {
+	fmt.Fprintf(b, "%-16s %8s\n", name, comma(value))
+}
+
+func writePlainValues(b *strings.Builder, values []string, limit int) {
 	if len(values) == 0 {
-		writeNone(b)
-		fmt.Fprintln(b)
+		fmt.Fprintln(b, "-")
 		return
 	}
-	fmt.Fprintf(b, "Total candidates: %d\n", len(values))
-	shown := values
-	if limit > 0 && len(values) > limit {
-		shown = values[:limit]
-	}
+	shown := capped(values, limit)
 	for _, value := range shown {
-		fmt.Fprintf(b, "%s %s\n", prefix, value)
+		fmt.Fprintln(b, reportValue(value))
 	}
-	if len(shown) < len(values) {
-		fmt.Fprintf(b, "[MORE] Showing %d of %d. Full data is available in the detailed sections below.\n", len(shown), len(values))
+}
+
+func writeDNSGroup(b *strings.Builder, title string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	fmt.Fprintln(b, title)
+	for _, value := range values {
+		fmt.Fprintln(b, reportValue(value))
 	}
 	fmt.Fprintln(b)
 }
 
-func writeNone(b *strings.Builder) {
-	fmt.Fprintln(b, "[NONE] No data collected.")
+func collectTechnologies(ds builtDataset) []string {
+	seen := map[string]struct{}{}
+	for _, item := range ds.Technologies {
+		for _, tech := range item.Technologies {
+			if tech = strings.TrimSpace(tech); tech != "" {
+				seen[tech] = struct{}{}
+			}
+		}
+	}
+	for _, item := range ds.HTTP {
+		for _, tech := range item.Technologies {
+			if tech = strings.TrimSpace(tech); tech != "" {
+				seen[tech] = struct{}{}
+			}
+		}
+	}
+	return sortedKeys(seen)
 }
 
-func writeDNSValues(b *strings.Builder, host, recordType string, values []string) {
+func whoisValue(fields []WHOISField, key string) string {
+	for _, field := range fields {
+		if strings.EqualFold(field.Key, key) {
+			return field.Value
+		}
+	}
+	return ""
+}
+
+func findRawWHOISValue(lines []string, key string) string {
+	prefix := strings.ToLower(key) + ":"
+	for _, line := range lines {
+		clean := strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToLower(clean), prefix) {
+			_, value, _ := strings.Cut(clean, ":")
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func nameServers(ds builtDataset) []string {
+	seen := map[string]struct{}{}
+	for _, value := range strings.Split(whoisValue(ds.WHOIS, "name_servers"), ",") {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			seen[value] = struct{}{}
+		}
+	}
+	for _, value := range dnsValues(ds.DNS, "NS") {
+		if _, recordValue, ok := strings.Cut(value, " -> "); ok {
+			value = recordValue
+		}
+		value = strings.TrimSpace(value)
+		if value != "" {
+			seen[value] = struct{}{}
+		}
+	}
+	return sortedKeys(seen)
+}
+
+func dnsValues(records []DNSAsset, recordType string) []string {
+	var values []string
+	for _, record := range records {
+		for _, value := range dnsRecordValues(record, recordType) {
+			values = append(values, record.Host+" -> "+value)
+		}
+	}
+	return uniqueSorted(values)
+}
+
+func dnsRecordValues(record DNSAsset, recordType string) []string {
+	switch strings.ToUpper(recordType) {
+	case "A":
+		return record.A
+	case "AAAA":
+		return record.AAAA
+	case "CNAME":
+		return record.CNAME
+	case "MX":
+		return record.MX
+	case "NS":
+		return record.NS
+	case "TXT":
+		return record.TXT
+	case "SOA":
+		return record.SOA
+	case "CAA":
+		return record.CAA
+	case "DNSKEY":
+		return record.DNSKEY
+	case "DS":
+		return record.DS
+	default:
+		return nil
+	}
+}
+
+func writeAssetBlocks(b *strings.Builder, ds builtDataset) {
+	httpByHost := map[string][]HTTPAsset{}
+	for _, asset := range ds.HTTP {
+		httpByHost[asset.Host] = append(httpByHost[asset.Host], asset)
+	}
+	portsByHost := map[string][]PortAsset{}
+	for _, port := range ds.Ports {
+		portsByHost[port.Host] = append(portsByHost[port.Host], port)
+	}
+	dnsByHost := map[string]DNSAsset{}
+	for _, record := range ds.DNS {
+		dnsByHost[record.Host] = record
+	}
+
+	if len(ds.Subdomains) == 0 {
+		fmt.Fprintln(b, "-")
+		return
+	}
+	for index, host := range ds.Subdomains {
+		fmt.Fprintf(b, "[%02d] %s\n\n", index+1, host)
+		record := dnsByHost[host]
+		fmt.Fprintln(b, "DNS")
+		writeAssetValues(b, "IP", append(record.A, record.AAAA...))
+		writeAssetValues(b, "CNAME", record.CNAME)
+		fmt.Fprintln(b)
+
+		fmt.Fprintln(b, "HTTP")
+		if assets := httpByHost[host]; len(assets) > 0 {
+			for _, asset := range assets {
+				writeField(b, "URL", asset.URL)
+				if asset.Status > 0 {
+					writeField(b, "Status", strconv.Itoa(asset.Status))
+				}
+				writeField(b, "Title", asset.Title)
+				writeField(b, "Server", asset.Server)
+				writeField(b, "Technology", strings.Join(asset.Technologies, ", "))
+			}
+		} else {
+			fmt.Fprintln(b, "-")
+		}
+		fmt.Fprintln(b)
+
+		fmt.Fprintln(b, "Ports")
+		if ports := portsByHost[host]; len(ports) > 0 {
+			for _, port := range ports {
+				service := port.Service
+				if service == "" {
+					service = "unknown"
+				}
+				fmt.Fprintf(b, "%-16s %s\n", fmt.Sprintf("%d/tcp", port.Port), service)
+			}
+		} else {
+			fmt.Fprintln(b, "-")
+		}
+		fmt.Fprintln(b)
+		if index < len(ds.Subdomains)-1 {
+			fmt.Fprintln(b, "---")
+			fmt.Fprintln(b)
+		}
+	}
+}
+
+func writeAssetValues(b *strings.Builder, name string, values []string) {
+	values = uniqueSorted(values)
+	if len(values) == 0 {
+		writeField(b, name, "")
+		return
+	}
 	for _, value := range values {
-		fmt.Fprintf(b, "[DNS] [%s] %s -> %s\n", recordType, host, value)
+		writeField(b, name, value)
+	}
+}
+
+func writeURLBucket(b *strings.Builder, title string, values []string, limit int) {
+	fmt.Fprintln(b, title)
+	if len(values) == 0 {
+		fmt.Fprintln(b, "-")
+		fmt.Fprintln(b)
+		return
+	}
+	for _, value := range capped(values, limit) {
+		fmt.Fprintln(b, reportValue(compactURL(value)))
+	}
+	if limit > 0 && len(values) > limit {
+		fmt.Fprintf(b, "... %s more in urls.txt\n", comma(len(values)-limit))
+	}
+	fmt.Fprintln(b)
+}
+
+func apiLikeURLs(urls []string) []string {
+	re := regexp.MustCompile(`(?i)(/api(?:/|$)|/v[0-9]+(?:/|$)|graphql|swagger|openapi|/docs(?:/|$))`)
+	return filterStrings(urls, func(value string) bool {
+		parsed, err := url.Parse(value)
+		if err != nil || isStaticURLPath(parsed.Path) {
+			return false
+		}
+		return re.MatchString(value)
+	})
+}
+
+func otherURLs(urls []string) []string {
+	priority := map[string]struct{}{}
+	for _, value := range append(append(authLikeURLs(urls), apiLikeURLs(urls)...), parameterizedURLs(urls)...) {
+		priority[value] = struct{}{}
+	}
+	return filterStrings(urls, func(value string) bool {
+		if _, ok := priority[value]; ok {
+			return false
+		}
+		parsed, err := url.Parse(value)
+		return err == nil && !isStaticURLPath(parsed.Path)
+	})
+}
+
+func writeTaggedEndpoints(b *strings.Builder, endpoints []string, limit int) {
+	if len(endpoints) == 0 {
+		fmt.Fprintln(b, "-")
+		return
+	}
+	for _, endpoint := range capped(endpoints, limit) {
+		fmt.Fprintf(b, "[%s] %s\n", endpointTags(endpoint), reportValue(endpoint))
 	}
 }
 
@@ -591,6 +789,56 @@ func filterStrings(values []string, keep func(string) bool) []string {
 		}
 	}
 	return out
+}
+
+func capped(values []string, limit int) []string {
+	if limit <= 0 || len(values) <= limit {
+		return values
+	}
+	return values[:limit]
+}
+
+func reportValue(value string) string {
+	value = strings.TrimSpace(value)
+	const max = 220
+	if len(value) <= max {
+		return value
+	}
+	return value[:max] + " ... [truncated]"
+}
+
+func compactURL(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" {
+		return value
+	}
+	path := parsed.EscapedPath()
+	if path == "" {
+		path = "/"
+	}
+	if parsed.RawQuery != "" {
+		path += "?" + parsed.RawQuery
+	}
+	if parsed.Hostname() == "" {
+		return path
+	}
+	return parsed.Hostname() + path
+}
+
+func comma(value int) string {
+	text := strconv.Itoa(value)
+	if len(text) <= 3 {
+		return text
+	}
+	var parts []string
+	for len(text) > 3 {
+		parts = append([]string{text[len(text)-3:]}, parts...)
+		text = text[:len(text)-3]
+	}
+	if text != "" {
+		parts = append([]string{text}, parts...)
+	}
+	return strings.Join(parts, ",")
 }
 
 func isStaticURLPath(path string) bool {
