@@ -35,11 +35,15 @@ peyda deps
 This command:
 
 - prefers `$HOME/go/bin` first in `PATH`
-- installs or refreshes required Go-based recon tools with `go install @latest`
+- also searches `$HOME/.local/bin` for Python CLI tools installed with `pipx` or `pip --user`
+- installs missing Go-based recon tools with `go install @latest`
+- attempts to install useful system helpers such as `ripgrep`, `whois`, `dnsutils`, and `nmap`
+- attempts to install Python helpers such as `Arjun` and `xnLinkFinder`
 - detects the common Python `httpx` / ProjectDiscovery `httpx` name collision
-- reports optional helper tools such as `whois`, `dig`, `nmap`, `Arjun`, and `xnLinkFinder` without blocking the recon run
+- keeps the recon run moving when an optional helper cannot be installed
 
-Force-update Go-based recon tools:
+Force-update Go-based and Python recon tools, and ask the system package manager
+to refresh system helpers:
 
 ```bash
 peyda deps --update
@@ -76,6 +80,8 @@ gau --version
 ## Optional Python Tools
 
 These improve parameter and JavaScript endpoint discovery when available.
+`peyda deps` attempts to install them automatically with `pipx` first, then
+falls back to `pip --user` when needed.
 
 ```bash
 pipx install arjun
@@ -98,8 +104,8 @@ gitleaks version
 
 ## Useful System Packages
 
-These are optional for manual workflows and local development. `peyda` core
-logic does not require them at runtime.
+`peyda deps` attempts to install these automatically on apt-based Linux systems.
+They are still listed here for manual setup and troubleshooting.
 
 ```bash
 sudo apt update

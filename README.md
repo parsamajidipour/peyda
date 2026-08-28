@@ -447,8 +447,9 @@ Meaning:
 ### 4. Tune tool behavior
 
 The `tools` section controls how `peyda` calls each recon stage. Helpers such as
-`whois`, `dig`, `naabu`, `nmap`, `gau`, `Arjun`, and `xnLinkFinder` are detected
-automatically and skipped gracefully if they are not installed.
+`whois`, `dig`, `naabu`, `nmap`, `gau`, `Arjun`, and `xnLinkFinder` are prepared
+automatically when possible. If a helper cannot be installed on the current
+system, Peyda keeps the run moving and prints a clear dependency warning.
 
 ```json
 {

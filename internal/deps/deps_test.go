@@ -47,7 +47,29 @@ func TestLookPathPrefersGoBin(t *testing.T) {
 	}
 }
 
-func TestEnsureDoesNotInstallOptionalSystemTools(t *testing.T) {
+func TestLookPathSearchesLocalBinAfterGoBin(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("GOPATH", filepath.Join(tmp, "go"))
+	t.Setenv("PATH", "/usr/bin")
+
+	localBin := DetectLocalBin()
+	if err := os.MkdirAll(localBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tool := filepath.Join(localBin, "peyda-local-tool")
+	writeTool(t, tool, "#!/usr/bin/env sh\n")
+
+	path, err := LookPath("peyda-local-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != tool {
+		t.Fatalf("path = %s, want %s", path, tool)
+	}
+}
+
+func TestEnsureContinuesWhenOptionalInstallersAreUnavailable(t *testing.T) {
 	tmp := t.TempDir()
 	goBin := filepath.Join(tmp, "go", "bin")
 	if err := os.MkdirAll(goBin, 0o755); err != nil {
@@ -67,7 +89,7 @@ func TestEnsureDoesNotInstallOptionalSystemTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(out.String(), "Installing system packages") {
-		t.Fatalf("optional system tool triggered apt install:\n%s", out.String())
+		t.Fatalf("unexpected system package install without apt-get in PATH:\n%s", out.String())
 	}
 }
 

@@ -54,6 +54,18 @@ type goTool struct {
 	optional bool
 }
 
+type systemTool struct {
+	name     string
+	pkg      string
+	optional bool
+}
+
+type pythonTool struct {
+	name     string
+	pkg      string
+	optional bool
+}
+
 var goTools = []goTool{
 	{"subfinder", "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest", false},
 	{"dnsx", "github.com/projectdiscovery/dnsx/cmd/dnsx@latest", false},
@@ -64,7 +76,17 @@ var goTools = []goTool{
 }
 
 var requiredSystemTools []string
-var optionalSystemTools = []string{"rg", "whois", "dig", "nmap", "arjun", "xnLinkFinder"}
+var systemTools = []systemTool{
+	{"rg", "ripgrep", true},
+	{"whois", "whois", true},
+	{"dig", "dnsutils", true},
+	{"nmap", "nmap", true},
+}
+
+var pythonTools = []pythonTool{
+	{"arjun", "arjun", true},
+	{"xnLinkFinder", "xnLinkFinder", true},
+}
 
 func (m Manager) Run(mode Mode) error {
 	if m.Out == nil {
@@ -76,10 +98,14 @@ func (m Manager) Run(mode Mode) error {
 
 	fmt.Fprintln(m.Out, "[deps] Recon dependency check")
 	fmt.Fprintf(m.Out, "[deps] Go bin is preferred first in PATH: %s\n", DetectGoBin())
+	fmt.Fprintf(m.Out, "[deps] Python local bin is also searched: %s\n", DetectLocalBin())
 
 	if mode != Check {
-		if err := m.installSystemPackages(); err != nil {
-			return err
+		if err := m.installSystemPackages(mode); err != nil {
+			fmt.Fprintf(m.Out, "[deps] System package install skipped or failed: %v\n", err)
+		}
+		if err := m.installPythonTools(mode); err != nil {
+			fmt.Fprintf(m.Out, "[deps] Python tool install skipped or failed: %v\n", err)
 		}
 	}
 
@@ -91,8 +117,12 @@ func (m Manager) Run(mode Mode) error {
 			missing = append(missing, tool)
 		}
 	}
-	for _, tool := range optionalSystemTools {
-		status := m.checkTool(tool, true)
+	for _, tool := range systemTools {
+		status := m.checkTool(tool.name, tool.optional)
+		m.printStatus(status)
+	}
+	for _, tool := range pythonTools {
+		status := m.checkTool(tool.name, tool.optional)
 		m.printStatus(status)
 	}
 
@@ -177,7 +207,7 @@ func (m Manager) printStatus(status ToolStatus) {
 	fmt.Fprintf(m.Out, "[deps] Missing: %s\n", status.Name)
 }
 
-func (m Manager) installSystemPackages() error {
+func (m Manager) installSystemPackages(mode Mode) error {
 	if os.Getenv("RECON_SKIP_APT") == "1" {
 		return nil
 	}
@@ -186,17 +216,28 @@ func (m Manager) installSystemPackages() error {
 	}
 
 	var packages []string
+	for _, tool := range systemTools {
+		if mode != Update {
+			if _, err := LookPath(tool.name); err == nil {
+				continue
+			}
+		}
+		packages = append(packages, tool.pkg)
+	}
 	for _, name := range requiredSystemTools {
-		if _, err := LookPath(name); err == nil {
-			continue
+		if mode != Update {
+			if _, err := LookPath(name); err == nil {
+				continue
+			}
 		}
 		packages = append(packages, aptPackageName(name))
 	}
+	packages = uniqueStrings(packages)
 	if len(packages) == 0 {
 		return nil
 	}
 
-	fmt.Fprintf(m.Out, "[deps] Installing system packages: %s\n", strings.Join(packages, " "))
+	fmt.Fprintf(m.Out, "[deps] Installing/updating system packages: %s\n", strings.Join(packages, " "))
 	args := []string{"apt-get", "update"}
 	if os.Geteuid() != 0 {
 		if _, err := exec.LookPath("sudo"); err != nil {
@@ -205,7 +246,7 @@ func (m Manager) installSystemPackages() error {
 		args = append([]string{"sudo"}, args...)
 	}
 	if err := m.exec(args[0], args[1:]...); err != nil {
-		return err
+		fmt.Fprintf(m.Out, "[deps] apt-get update failed; trying install with existing package cache: %v\n", err)
 	}
 
 	args = []string{"apt-get", "install", "-y"}
@@ -214,6 +255,68 @@ func (m Manager) installSystemPackages() error {
 		args = append([]string{"sudo"}, args...)
 	}
 	return m.exec(args[0], args[1:]...)
+}
+
+func (m Manager) installPythonTools(mode Mode) error {
+	for _, tool := range pythonTools {
+		if mode != Update {
+			if _, err := LookPath(tool.name); err == nil {
+				continue
+			}
+		}
+		if err := m.installPythonTool(tool, mode); err != nil {
+			if tool.optional {
+				fmt.Fprintf(m.Out, "[deps] Optional Python install failed: %s (%v)\n", tool.name, err)
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (m Manager) installPythonTool(tool pythonTool, mode Mode) error {
+	if path, err := exec.LookPath("pipx"); err == nil {
+		args := []string{"install", tool.pkg}
+		if mode == Update {
+			args = []string{"install", tool.pkg, "--force"}
+		}
+		fmt.Fprintf(m.Out, "[deps] Installing/updating %s with pipx\n", tool.name)
+		if err := m.exec(path, args...); err == nil {
+			return nil
+		}
+	}
+
+	python := ""
+	for _, name := range []string{"python3", "python"} {
+		if path, err := exec.LookPath(name); err == nil {
+			python = path
+			break
+		}
+	}
+	if python == "" {
+		return fmt.Errorf("pipx or python is required to install %s", tool.name)
+	}
+
+	fmt.Fprintf(m.Out, "[deps] Installing/updating %s with pip --user\n", tool.name)
+	return m.exec(python, "-m", "pip", "install", "--user", "--upgrade", tool.pkg)
+}
+
+func uniqueStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func aptPackageName(name string) string {
@@ -271,11 +374,20 @@ func LookPath(name string) (string, error) {
 			return path, nil
 		}
 	}
+	if localBin := DetectLocalBin(); localBin != "" {
+		path := filepath.Join(localBin, name)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return path, nil
+		}
+	}
 	return exec.LookPath(name)
 }
 
 func WithGoBinFirst(env []string) []string {
 	path := os.Getenv("PATH")
+	if localBin := DetectLocalBin(); localBin != "" {
+		path = localBin + string(os.PathListSeparator) + path
+	}
 	if goBin := DetectGoBin(); goBin != "" {
 		path = goBin + string(os.PathListSeparator) + path
 	}
@@ -301,6 +413,13 @@ func DetectGoBin() string {
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(home, "go", "bin")
+	}
+	return ""
+}
+
+func DetectLocalBin() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".local", "bin")
 	}
 	return ""
 }
